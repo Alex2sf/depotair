@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Spatie\Permission\Models\Role;
 
 class DatabaseSeeder extends Seeder
 {
@@ -15,12 +16,16 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        // Bikin role super_admin dulu (kalau belum ada)
+        $role = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
 
-        User::factory()->create([
+        $admin = User::factory()->create([
             'name' => 'Admin',
             'email' => 'admin@admin.com',
             'password' => bcrypt('password'), // password is 'password'
         ]);
+
+        // Assign role ke user biar bisa login ke Filament
+        $admin->assignRole($role);
     }
 }
