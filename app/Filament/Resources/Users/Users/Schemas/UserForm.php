@@ -31,7 +31,8 @@ class UserForm
                     ? 'Password Baru (kosongkan jika tidak diganti)'
                     : 'Password')
                 ->password()
-                ->confirmed()
+                ->nullable()
+                ->rules(fn (string $context) => $context === 'create' ? ['confirmed'] : [])
                 ->rule(Password::default())
                 ->dehydrated(fn ($state) => filled($state))
                 ->dehydrateStateUsing(fn ($state) => filled($state) ? Hash::make($state) : null)

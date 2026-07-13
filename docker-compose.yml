@@ -1,0 +1,25 @@
+services:
+  app:
+    build: .
+    container_name: depotair_app
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+      - ./.env.docker:/var/www/html/.env
+    depends_on:
+      - db
+
+  db:
+    image: mysql:8.0
+    container_name: depotair_db
+    ports:
+      - "33060:3306"
+    environment:
+      - MYSQL_DATABASE=depotair
+      - MYSQL_ALLOW_EMPTY_PASSWORD=yes
+    volumes:
+      - depotair_db_data:/var/lib/mysql
+
+volumes:
+  depotair_db_data:
