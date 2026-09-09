@@ -23,7 +23,7 @@ class ProductController extends Controller
                     'name'          => $product->name,
                     'price'         => (int) $product->price,
                     'image_url'     => $product->image_url ?? null,
-                    'product_type'  => $product->product_type?->value ?? 'UNKNOWN',
+                    'product_type'  => is_object($product->product_type) ? ($product->product_type->value ?? 'UNKNOWN') : ($product->product_type ?? 'UNKNOWN'),
                     'unit'          => $product->unit,
                     'sku'           => $product->sku,
                     'stock'         => (int) ($inventory?->quantity ?? 0),
@@ -31,11 +31,21 @@ class ProductController extends Controller
                 ];
             });
 
-        // FILTER OPTIONS — INI YANG KEREN!
-        $typeOptions = collect(ProductType::cases())->map(fn($type) => [
-            'value' => $type->value,
-            'label' => $type->getLabel(),
-        ])->prepend([
+        // Dynamic Filter Options from database
+        $typesFromDb = \App\Models\ProductType::where('is_active', true)->get();
+        if ($typesFromDb->isNotEmpty()) {
+            $typeOptions = $typesFromDb->map(fn($t) => [
+                'value' => $t->code,
+                'label' => $t->name,
+            ]);
+        } else {
+            $typeOptions = collect(ProductType::cases())->map(fn($type) => [
+                'value' => $type->value,
+                'label' => $type->getLabel(),
+            ]);
+        }
+
+        $typeOptions = $typeOptions->prepend([
             'value' => 'SEMUA',
             'label' => 'Semua Tipe',
         ])->values()->toArray();

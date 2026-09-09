@@ -97,49 +97,56 @@ function copyToClipboard(text) {
 
 <!-- FUNCTIONAL CATEGORY FILTERS -->
 <div class="bg-white p-4 pt-2">
-    <div class="grid grid-cols-4 gap-4">
+    <div class="flex items-center gap-4 overflow-x-auto pb-2 scrollbar-none">
         <!-- ALL -->
-        <a href="{{ route('customer.home', ['type' => 'ALL']) }}" class="flex flex-col items-center gap-2 group">
+        <a href="{{ route('customer.home', ['type' => 'ALL']) }}" class="flex flex-col items-center gap-2 group min-w-[56px]">
             <div class="w-12 h-12 rounded-full {{ request('type') == 'ALL' || !request('type') ? 'bg-shopee text-white' : 'bg-gray-100 text-gray-500' }} flex items-center justify-center transition shadow-sm border border-gray-100">
                 <i class="fas fa-th-large text-lg"></i>
             </div>
-            <span class="text-[10px] {{ request('type') == 'ALL' || !request('type') ? 'font-bold text-shopee' : 'text-gray-600' }}">Semua</span>
+            <span class="text-[10px] whitespace-nowrap {{ request('type') == 'ALL' || !request('type') ? 'font-bold text-shopee' : 'text-gray-600' }}">Semua</span>
         </a>
 
-        <!-- REFILL -->
-        <a href="{{ route('customer.home', ['type' => 'REFILL']) }}" class="flex flex-col items-center gap-2 group">
-            <div class="w-12 h-12 rounded-full {{ request('type') == 'REFILL' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600' }} flex items-center justify-center transition shadow-sm border border-blue-100">
-                <i class="fas fa-tint text-lg"></i>
+        @foreach($productTypes ?? [] as $type)
+        @php
+            $isActive = request('type') === $type->code;
+            $bgActive = match($type->color) {
+                'info' => 'bg-blue-600 text-white',
+                'success' => 'bg-teal-600 text-white',
+                'warning' => 'bg-orange-600 text-white',
+                'danger' => 'bg-red-600 text-white',
+                default => 'bg-shopee text-white',
+            };
+            $bgInactive = match($type->color) {
+                'info' => 'bg-blue-50 text-blue-600 border-blue-100',
+                'success' => 'bg-teal-50 text-teal-600 border-teal-100',
+                'warning' => 'bg-orange-50 text-orange-600 border-orange-100',
+                'danger' => 'bg-red-50 text-red-600 border-red-100',
+                default => 'bg-gray-50 text-gray-600 border-gray-100',
+            };
+            $icon = match($type->code) {
+                'REFILL' => 'fa-tint',
+                'NEW_UNIT' => 'fa-bottle-water',
+                'CONSUMABLE' => 'fa-box',
+                default => 'fa-tag',
+            };
+        @endphp
+        <a href="{{ route('customer.home', ['type' => $type->code]) }}" class="flex flex-col items-center gap-2 group min-w-[56px]">
+            <div class="w-12 h-12 rounded-full {{ $isActive ? $bgActive : $bgInactive }} flex items-center justify-center transition shadow-sm border">
+                <i class="fas {{ $icon }} text-lg"></i>
             </div>
-            <span class="text-[10px] {{ request('type') == 'REFILL' ? 'font-bold text-blue-600' : 'text-gray-600' }}">Isi Ulang</span>
+            <span class="text-[10px] whitespace-nowrap {{ $isActive ? 'font-bold text-shopee' : 'text-gray-600' }}">{{ $type->name }}</span>
         </a>
-
-        <!-- NEW UNIT -->
-        <a href="{{ route('customer.home', ['type' => 'NEW_UNIT']) }}" class="flex flex-col items-center gap-2 group">
-             <div class="w-12 h-12 rounded-full {{ request('type') == 'NEW_UNIT' ? 'bg-teal-600 text-white' : 'bg-teal-50 text-teal-600' }} flex items-center justify-center transition shadow-sm border border-teal-100">
-                <i class="fas fa-bottle-water text-lg"></i>
-            </div>
-            <span class="text-[10px] {{ request('type') == 'NEW_UNIT' ? 'font-bold text-teal-600' : 'text-gray-600' }}">Galon Baru</span>
-        </a>
-
-        <!-- CONSUMABLE -->
-        <a href="{{ route('customer.home', ['type' => 'CONSUMABLE']) }}" class="flex flex-col items-center gap-2 group">
-             <div class="w-12 h-12 rounded-full {{ request('type') == 'CONSUMABLE' ? 'bg-orange-600 text-white' : 'bg-orange-50 text-orange-600' }} flex items-center justify-center transition shadow-sm border border-orange-100">
-                <i class="fas fa-box text-lg"></i>
-            </div>
-            <span class="text-[10px] {{ request('type') == 'CONSUMABLE' ? 'font-bold text-orange-600' : 'text-gray-600' }}">Barang</span>
-        </a>
+        @endforeach
     </div>
 </div>
 
 <!-- PRODUCT HEADER -->
 <div class="px-4 py-2 mt-2 flex items-center justify-between">
     <h3 class="font-bold text-gray-800 text-lg border-l-4 border-shopee pl-2">
-        @if(request('type') == 'REFILL') Isi Ulang Galon
-        @elseif(request('type') == 'NEW_UNIT') Paket Galon Baru
-        @elseif(request('type') == 'CONSUMABLE') Barang Konsumsi
-        @else Semua Produk
-        @endif
+        @php
+            $currentType = collect($productTypes ?? [])->firstWhere('code', request('type'));
+        @endphp
+        {{ $currentType ? $currentType->name : 'Semua Produk' }}
     </h3>
     <span class="text-xs text-shopee bg-orange-50 px-2 py-1 rounded-full border border-orange-100 font-medium">{{ $products->count() }} Produk</span>
 </div>

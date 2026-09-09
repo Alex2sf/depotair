@@ -59,8 +59,42 @@ class ProductForm
 
             Select::make('product_type')
                 ->label('Tipe Produk')
-                ->options(ProductType::class)
-                ->required(),
+                ->options(fn () => \App\Models\ProductType::where('is_active', true)->pluck('name', 'code')->toArray())
+                ->searchable()
+                ->preload()
+                ->required()
+                ->createOptionForm([
+                    TextInput::make('name')
+                        ->label('Nama Tipe / Kategori')
+                        ->required()
+                        ->live(onBlur: true)
+                        ->afterStateUpdated(fn ($set, $state) => $set('code', strtoupper(\Illuminate\Support\Str::slug($state, '_')))),
+                    TextInput::make('code')
+                        ->label('Kode Tipe (Unik)')
+                        ->required()
+                        ->unique(\App\Models\ProductType::class, 'code'),
+                    Select::make('color')
+                        ->label('Warna Label')
+                        ->options([
+                            'primary' => 'Amber / Orange (Primary)',
+                            'info' => 'Biru (Info)',
+                            'success' => 'Hijau (Success)',
+                            'warning' => 'Kuning (Warning)',
+                            'danger' => 'Merah (Danger)',
+                            'gray' => 'Abu-abu (Gray)',
+                        ])
+                        ->default('primary')
+                        ->required(),
+                ])
+                ->createOptionUsing(function (array $data): string {
+                    $type = \App\Models\ProductType::create([
+                        'name' => $data['name'],
+                        'code' => strtoupper($data['code']),
+                        'color' => $data['color'] ?? 'primary',
+                        'is_active' => true,
+                    ]);
+                    return $type->code;
+                }),
 
             TextInput::make('unit')
                 ->label('Satuan')

@@ -28,8 +28,18 @@ class ProductsTable
                     ->label('Kode'),
 
                 TextColumn::make('product_type')
+                    ->label('Tipe Produk')
                     ->badge()
-                    ->color(fn ($state) => $state->getColor()),
+                    ->formatStateUsing(function ($state, $record) {
+                        return $record->productTypeRelation?->name 
+                            ?? (is_object($state) ? ($state->getLabel() ?? $state->value) : $state);
+                    })
+                    ->color(function ($state, $record) {
+                        if ($record->productTypeRelation?->color) {
+                            return $record->productTypeRelation->color;
+                        }
+                        return is_object($state) && method_exists($state, 'getColor') ? $state->getColor() : 'primary';
+                    }),
 
                 TextColumn::make('unit')
                     ->label('Satuan'),
@@ -62,7 +72,7 @@ class ProductsTable
             ->filters([
                 \Filament\Tables\Filters\SelectFilter::make('product_type')
                     ->label('Tipe Produk')
-                    ->options(\App\Enums\ProductType::class),
+                    ->options(fn () => \App\Models\ProductType::pluck('name', 'code')->toArray()),
                 \Filament\Tables\Filters\TernaryFilter::make('is_enabled')
                     ->label('Status Aktif')
                     ->trueLabel('Aktif Saja')

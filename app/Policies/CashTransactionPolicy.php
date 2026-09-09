@@ -66,4 +66,5 @@ class CashTransactionPolicy
     {
         return $authUser->can('Reorder:CashTransaction');
     }
+
 }

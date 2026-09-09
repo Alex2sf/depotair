@@ -31,7 +31,16 @@ class ProductInfolist
             TextEntry::make('product_type')
                 ->label('Tipe')
                 ->badge()
-                ->color(fn ($state) => $state->getColor()),
+                ->formatStateUsing(function ($state, $record) {
+                    return $record->productTypeRelation?->name 
+                        ?? (is_object($state) ? ($state->getLabel() ?? $state->value) : $state);
+                })
+                ->color(function ($state, $record) {
+                    if ($record->productTypeRelation?->color) {
+                        return $record->productTypeRelation->color;
+                    }
+                    return is_object($state) && method_exists($state, 'getColor') ? $state->getColor() : 'primary';
+                }),
 
             TextEntry::make('unit')
                 ->label('Satuan'),

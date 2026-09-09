@@ -43,10 +43,16 @@ class Product extends Model
     protected $casts = [
         'price' => 'integer',
         'cogs' => 'integer',
-
         'is_enabled' => 'boolean',
-        'product_type' => ProductType::class,
     ];
+
+    /**
+     * Relasi ke master Tipe/Kategori Produk
+     */
+    public function productTypeRelation(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(ProductType::class, 'product_type', 'code');
+    }
 
     /**
      * Mendapatkan data inventaris (stok) untuk Product ini.

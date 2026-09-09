@@ -24,7 +24,8 @@ class CustomerOrderController extends Controller
         }
 
         $products = $query->with('inventory')->get();
-        return view('customer.home', compact('products'));
+        $productTypes = \App\Models\ProductType::where('is_active', true)->get();
+        return view('customer.home', compact('products', 'productTypes'));
     }
 
     public function addToCart(Request $request)
