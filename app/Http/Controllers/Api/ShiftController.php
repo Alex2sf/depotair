@@ -74,6 +74,20 @@ class ShiftController extends Controller
             'expected_cash'  => $expectedCash,
         ]);
 
+        // Cari shift terakhir yang sudah DITUTUP oleh kasir sebelumnya
+        $lastClosedShift = \App\Models\CashierShift::where('status', 'CLOSED')
+            ->where('id', '!=', $activeShift->id)
+            ->with('user:id,name')
+            ->latest('end_time')
+            ->first();
+
+        // Cari apakah ada kasir lain yang shift-nya masih OPEN (belum tutup)
+        $otherOpenShift = \App\Models\CashierShift::where('status', 'OPEN')
+            ->where('user_id', '!=', $user->id)
+            ->with('user:id,name')
+            ->latest('id')
+            ->first();
+
         return response()->json([
             'success' => true,
             'shift'   => [
@@ -88,7 +102,25 @@ class ShiftController extends Controller
                 'current_drawer_balance' => (int) $cashierBalance,
                 'status'         => $activeShift->status,
             ],
-            'previous_shift_info' => isset($otherOpenShift) ? [
+            'last_closed_shift' => $lastClosedShift ? [
+                'id'             => $lastClosedShift->id,
+                'cashier_name'   => $lastClosedShift->user?->name ?? 'Kasir Sebelumnya',
+                'start_time'     => $lastClosedShift->start_time->format('d/m/Y H:i'),
+                'end_time'       => $lastClosedShift->end_time?->format('d/m/Y H:i'),
+                'starting_cash'  => (int) $lastClosedShift->starting_cash,
+                'cash_sales'     => (int) $lastClosedShift->cash_sales,
+                'cash_expenses'  => (int) $lastClosedShift->cash_expenses,
+                'cash_deposited' => (int) $lastClosedShift->cash_deposited,
+                'expected_cash'  => (int) $lastClosedShift->expected_cash,
+                'actual_cash'    => (int) $lastClosedShift->actual_cash,
+                'difference'     => (int) $lastClosedShift->difference,
+                'notes'          => $lastClosedShift->notes,
+            ] : null,
+            'unclosed_shift_warning' => $otherOpenShift ? [
+                'other_user_name' => $otherOpenShift->user?->name ?? 'Kasir Lain',
+                'opened_at'       => $otherOpenShift->start_time->format('d/m/Y H:i'),
+            ] : null,
+            'previous_shift_info' => $otherOpenShift ? [
                 'other_user_name' => $otherOpenShift->user?->name,
                 'opened_at'       => $otherOpenShift->start_time->format('d/m/Y H:i'),
             ] : null,
