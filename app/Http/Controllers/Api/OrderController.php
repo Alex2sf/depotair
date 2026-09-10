@@ -306,44 +306,51 @@ class OrderController extends Controller
     {
         try {
             $order = Order::with('products')->where('order_number', $order_number)
-                ->whereIn('status', ['DRAFT', 'NEW', 'PENDING', 'PAID', 'PREPARED', 'READY', 'ON_DELIVERY']) // Izinkan status lain selain READY
+                ->whereIn('status', ['DRAFT', 'NEW', 'PENDING', 'PAID', 'PREPARED', 'READY', 'ON_DELIVERY', 'COMPLETE'])
                 ->firstOrFail();
 
-            DB::transaction(function () use ($order, $request) {
-                // 1. Kembalikan stok ke tabel inventories
+            $reason = $request->input('reason', 'Dibatalkan oleh kasir');
+
+            DB::transaction(function () use ($order, $request, $reason) {
+                // 1. Kembalikan stok ke tabel inventories jika status sebelumnya bukan CANCELLED
                 foreach ($order->products as $product) {
                     Inventory::where('product_id', $product->id)
                         ->increment('quantity', $product->pivot->quantity);
                 }
 
-                // 2. Kalau bayar TUNAI → refund dari kas kasir
-            if (($order->payment_type->value ?? '') === 'TUNAI') {
+                // 2. Kalau bayar TUNAI → refund / kurangi dari kas kasir
+                $paymentType = is_object($order->payment_type) ? ($order->payment_type->value ?? '') : (string)$order->payment_type;
+                if (strtoupper($paymentType) === 'TUNAI') {
                     CashBalance::where('type', CashBalance::CASHIER)
                         ->decrement('balance', $order->total_amount);
 
                     CashTransaction::create([
                         'type'        => CashTransaction::TYPE_EXPENSE,
                         'amount'      => $order->total_amount,
-                        'description' => "Refund batal order #{$order->order_number}",
+                        'description' => "Void/Batal order #{$order->order_number}: {$reason}",
                         'recorded_by' => $request->user()->id,
                         'order_id'    => $order->id,
                     ]);
                 }
 
-                // 3. Ubah status
-                $order->update(['status' => 'CANCELLED']);
+                // 3. Ubah status dan simpan catatan alasan
+                $existingNotes = $order->notes ? $order->notes . " | " : "";
+                $order->update([
+                    'status' => 'CANCELLED',
+                    'notes'  => $existingNotes . "BATAL: {$reason}"
+                ]);
             });
 
             return response()->json([
                 'success' => true,
-                'message' => 'Order berhasil dibatalkan + uang TUNAI dikembalikan!'
+                'message' => 'Pesanan #' . $order->order_number . ' berhasil dibatalkan! Stok & saldo laci telah disesuaikan.'
             ]);
 
         } catch (\Exception $e) {
             \Log::error('Cancel order gagal: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal: ' . $e->getMessage()
+                'message' => 'Gagal membatalkan pesanan: ' . $e->getMessage()
             ], 500);
         }
     }
