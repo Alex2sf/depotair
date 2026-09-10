@@ -52,6 +52,7 @@ class CourierController extends Controller
             'phone' => $o->customer?->phone_number ?? '-',
             'alamat' => $o->delivery_address ?? '-',
             'status' => $o->status,
+            'payment_type' => $o->payment_type->value ?? $o->payment_type,
             'total' => (int) $o->total_amount,
             'items_count' => $o->products->count(),
             'delivery_scheduled_at' => $o->delivery_scheduled_at?->format('d/m/Y H:i') ?? 'Sekarang',
@@ -94,6 +95,7 @@ class CourierController extends Controller
                 'alamat'                => $order->delivery_address ?? '-',
                 'gmaps_url'             => $order->address_link, // INI YANG DIPAKE KURIR KLIK!
                 'status'                => $order->status,
+                'payment_type'          => $order->payment_type->value ?? $order->payment_type,
                 'total'                 => (int) $order->total_amount,
                 'notes'                 => $order->notes ?? '-',
                 'delivery_scheduled_at' => $order->delivery_scheduled_at?->format('d/m/Y H:i') ?? 'Sekarang',
