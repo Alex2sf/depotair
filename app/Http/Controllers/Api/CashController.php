@@ -64,19 +64,26 @@ class CashController extends Controller
         });
     }
 
-   public function depositToMain(Request $request)
+    public function depositToMain(Request $request)
     {
         $request->validate([
             'amount'        => 'required|integer|min:0',
-            'on_behalf_of'  => 'nullable|exists:users,id', // ← INI YANG BARU! BOLEH KOSONG
+            'on_behalf_of'  => 'nullable|exists:users,id',
             'notes'         => 'nullable|string|max:200',
+            'proof_image'   => 'nullable|image|max:10240', // Maks 10MB foto bukti
         ]);
 
         $amount       = $request->amount;
-        $recordedBy   = $request->user()->id;           // Yang login
-        $onBehalfOf   = $request->on_behalf_of ?? $recordedBy; // Kalau gak diisi → pake yang login
+        $recordedBy   = $request->user()->id;
+        $onBehalfOf   = $request->on_behalf_of ?? $recordedBy;
 
-        return DB::transaction(function () use ($amount, $recordedBy, $onBehalfOf) {
+        // Simpan foto bukti jika ada
+        $proofImagePath = null;
+        if ($request->hasFile('proof_image')) {
+            $proofImagePath = $request->file('proof_image')->store('deposits', 'public');
+        }
+
+        return DB::transaction(function () use ($amount, $recordedBy, $onBehalfOf, $proofImagePath, $request) {
             $cashier = CashBalance::where('type', 'CASHIER')->firstOrFail();
 
             if ($amount > $cashier->balance) {
@@ -87,22 +94,26 @@ class CashController extends Controller
             $cashier->decrement('balance', $amount);
             $main->increment('balance', $amount);
 
-            // Nama yang dipilih
             $userName = \App\Models\User::find($onBehalfOf)?->name ?? 'Unknown';
+            $noteDesc = $request->notes ? " ({$request->notes})" : "";
 
-            CashTransaction::create([
+            $transaction = CashTransaction::create([
                 'type'         => CashTransaction::TYPE_DEPOSIT,
                 'amount'       => $amount,
-                'description'  => "Setor ke kas besar atas nama {$userName}",
+                'description'  => "Setor ke kas besar atas nama {$userName}{$noteDesc}",
+                'proof_image'  => $proofImagePath,
                 'recorded_by'  => $recordedBy,
-                'on_behalf_of' => $onBehalfOf, // ← INI YANG DISIMPAN!
+                'on_behalf_of' => $onBehalfOf,
             ]);
 
             return response()->json([
                 'success' => true,
                 'message' => "Berhasil setor Rp " . number_format($amount, 0, ',', '.') . " atas nama {$userName}!",
-                'saldo_kasir' => (int) $cashier->fresh()->balance,
-                'saldo_kas_besar' => (int) $main->fresh()->balance,
+                'data'    => [
+                    'saldo_kasir'     => (int) $cashier->fresh()->balance,
+                    'saldo_kas_besar' => (int) $main->fresh()->balance,
+                    'proof_image_url' => $transaction->proof_image_url,
+                ],
             ]);
         });
     }

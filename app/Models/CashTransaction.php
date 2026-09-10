@@ -13,6 +13,7 @@ class CashTransaction extends Model
         'type',
         'amount',
         'description',
+        'proof_image',
         'recorded_by',
         'on_behalf_of',
         'order_id',
@@ -21,6 +22,13 @@ class CashTransaction extends Model
     protected $casts = [
         'amount' => 'integer',
     ];
+
+    public function getProofImageUrlAttribute(): ?string
+    {
+        if (!$this->proof_image) return null;
+        if (filter_var($this->proof_image, FILTER_VALIDATE_URL)) return $this->proof_image;
+        return asset('storage/' . $this->proof_image);
+    }
 
     const TYPE_EXPENSE = 'EXPENSE';
     const TYPE_DEPOSIT = 'DEPOSIT';

@@ -49,6 +49,20 @@ Route::middleware(['auth:sanctum', 'role:admin,kasir'])->group(function () {
     // TAMBAH RUTE KHUSUS /api/kasir/list AGAR SESUAI DENGAN API SERVICE FLUTTER
     Route::get('/kasir/list', [CashController::class, 'listCashiers']);
 
+    // SHIFT ROUTES (Tracking Kasir, Tutup Shift, & Riwayat)
+    Route::prefix('shifts')->group(function () {
+        Route::get('/current', [\App\Http\Controllers\Api\ShiftController::class, 'current']);
+        Route::post('/close', [\App\Http\Controllers\Api\ShiftController::class, 'close']);
+        Route::get('/history', [\App\Http\Controllers\Api\ShiftController::class, 'history']);
+        Route::get('/deposits', [\App\Http\Controllers\Api\ShiftController::class, 'depositHistory']);
+    });
+
+    // BELANJA KASIR (Uang Laci -> Stok / Operasional)
+    Route::prefix('purchases')->group(function () {
+        Route::post('/', [\App\Http\Controllers\Api\CashierPurchaseController::class, 'store']);
+        Route::get('/history', [\App\Http\Controllers\Api\CashierPurchaseController::class, 'history']);
+    });
+
 
 });
 
