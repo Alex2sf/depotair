@@ -168,18 +168,18 @@ class OrderController extends Controller
             \Log::info('CHECKOUT DIPANGGIL BRO! PAYMENT: ' . $request->payment_type);
             $kasir = $request->user();
             $response = DB::transaction(function () use ($request, $kasir) {
-                // TAMBAH LOGIC JADWAL ANTER
+                // LOGIC JADWAL ANTER & ESTIMASI
                 $deliveryScheduledAt = null;
+                $completedTargetAt = null;
                 if ($request->order_type === 'DELIVERY') {
                     $deliveryScheduledAt = $request->filled('delivery_scheduled_at')
                         ? Carbon::parse($request->delivery_scheduled_at)
                         : now(); 
+
+                    // Default estimasi 30 menit jika tidak dikirim kasir
+                    $prepMinutes = $request->filled('prepared_minutes') ? (int)$request->prepared_minutes : 30;
+                    $completedTargetAt = $deliveryScheduledAt->copy()->addMinutes($prepMinutes);
                 }
-                
-                // --- LOGIC BARU: GLOBAL TIMER ---
-                $completedTargetAt = $request->filled('prepared_minutes') 
-                    ? now()->addMinutes((int)$request->prepared_minutes) 
-                    : null;
 
                 // 1. Buat order
                 $order = Order::create([
@@ -188,14 +188,14 @@ class OrderController extends Controller
                     'order_type' => $request->order_type,
                     'payment_type' => $request->payment_type,
                     'delivery_address' => $request->order_type === 'DELIVERY' ? $request->delivery_address : null,
-                    'address_link'     => $request->address_link ?? null, 
+                    'address_link'     => $request->order_type === 'DELIVERY' ? ($request->address_link ?? null) : null, 
                     'latitude' => $request->latitude ?? null,
                     'longitude' => $request->longitude ?? null,
-                    'delivery_fee' => $request->delivery_fee ?? 0,
+                    'delivery_fee' => $request->order_type === 'DELIVERY' ? ($request->delivery_fee ?? 0) : 0,
                     'additional_fee' => $request->additional_fee ?? 0,
                     'notes' => $request->notes,
                     'delivery_scheduled_at' => $deliveryScheduledAt, 
-                    'completed_target_at' => $completedTargetAt, // SATU TARGET UNTUK SEMUA
+                    'completed_target_at' => $completedTargetAt,
                     'status' => 'DRAFT',
                 ]);
 
@@ -224,13 +224,15 @@ class OrderController extends Controller
                     $product->inventory->deductStock($qty, $order);
                 }
                 $order->subtotal = $subtotal;
-                $order->total_amount = $subtotal + ($request->delivery_fee ?? 0) + ($request->additional_fee ?? 0);
+                $order->total_amount = $subtotal + ($order->delivery_fee ?? 0) + ($request->additional_fee ?? 0);
                 
                 // STATUS FINAL LOGIC
                 if ($request->order_type === 'DELIVERY') {
                     $order->status = 'DRAFT'; 
                 } else {
-                    $order->status = 'READY';
+                    // AMBIL SENDIRI / LANGSUNG -> LANGSUNG SELESAI (COMPLETE)
+                    $order->status = 'COMPLETE';
+                    $order->completed_time = now();
                 }
                 $order->save(); 
     

@@ -23,7 +23,7 @@ class OrderCheckoutRequest extends FormRequest
 
             // INI YANG BENAR & PALING AMAN!
             'delivery_address'      => 'required_if:order_type,DELIVERY|nullable|string|max:500',
-            'delivery_scheduled_at' => 'required_if:order_type,DELIVERY|nullable|date',
+            'delivery_scheduled_at' => 'nullable|date',
 
             'delivery_fee'          => 'nullable|numeric|min:0',
             'additional_fee'        => 'nullable|numeric|min:0',
