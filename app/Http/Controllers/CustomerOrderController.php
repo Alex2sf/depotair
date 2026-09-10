@@ -114,13 +114,19 @@ class CustomerOrderController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'phone' => 'required|string|max:20',
-            'address' => 'nullable|string', // Address nullable if pickup, handled below
-            'notes' => 'nullable|string',
+            'phone' => 'required|string|min:9|max:20',
+            'address' => $request->order_type === 'DELIVERY' ? 'required|string|max:500' : 'nullable|string',
+            'notes' => 'nullable|string|max:500',
             'order_type' => 'required|in:DELIVERY,SELF_PICKUP',
             'payment_type' => 'required|in:TUNAI,TRANSFER,QRIS,CORPORATE',
             'address_link' => 'nullable|url',
             'delivery_scheduled_at' => 'nullable|date',
+        ], [
+            'name.required' => 'Nama lengkap wajib diisi.',
+            'phone.required' => 'Nomor WhatsApp wajib diisi.',
+            'phone.min' => 'Nomor WhatsApp minimal harus 9 digit angka.',
+            'address.required' => 'Alamat pengantaran wajib diisi untuk layanan Delivery.',
+            'address_link.url' => 'Format link Google Maps tidak valid (harus diawali http:// atau https://).',
         ]);
 
         $cart = session('cart', []);

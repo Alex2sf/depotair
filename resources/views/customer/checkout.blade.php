@@ -11,6 +11,20 @@
 
 <form action="{{ route('order.submit') }}" method="POST" id="checkoutForm" class="pb-32 container mx-auto max-w-md">
     @csrf
+
+    @if($errors->any())
+    <div class="mx-4 mt-3 bg-red-50 border border-red-200 text-red-700 p-3.5 rounded-xl text-xs flex items-start gap-2.5 shadow-sm">
+        <i class="fas fa-exclamation-triangle text-red-500 text-sm mt-0.5 shrink-0"></i>
+        <div>
+            <p class="font-bold mb-1 text-red-800">Periksa Kembali Data Anda:</p>
+            <ul class="list-disc list-inside space-y-0.5 text-red-600">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    </div>
+    @endif
     
     <!-- ALAMAT & PENGIRIMAN -->
     <div class="bg-white mt-2 p-4 shadow-sm border-y border-gray-100">
@@ -42,10 +56,12 @@
                     autocomplete="name">
              </div>
              <div>
-                <input type="tel" name="phone" placeholder="Nomor WhatsApp" required 
-                    class="w-full text-sm border-b border-gray-200 focus:border-shopee py-2 outline-none transition bg-transparent"
-                    autocomplete="tel">
-             </div>
+                 <input type="tel" name="phone" placeholder="Nomor WhatsApp (contoh: 08123456789)" required 
+                     pattern="[0-9]{9,15}" title="Nomor WhatsApp harus berupa 9 sampai 15 digit angka"
+                     value="{{ old('phone') }}"
+                     class="w-full text-sm border-b border-gray-200 focus:border-shopee py-2 outline-none transition bg-transparent"
+                     autocomplete="tel">
+              </div>
              
              <div id="address_section">
                 <textarea name="address" id="address_input" placeholder="Alamat Lengkap (Jalan, No Rumah, Patokan)" rows="2" required
@@ -219,5 +235,18 @@
          const checkedPayment = document.querySelector('input[name="payment_type"]:checked');
          if(checkedPayment) togglePayment(checkedPayment.value);
     });
+
+    // Mencegah double submit order di web browser
+    const checkoutForm = document.getElementById('checkoutForm');
+    if (checkoutForm) {
+        checkoutForm.addEventListener('submit', function(e) {
+            const btn = checkoutForm.querySelector('button[type="submit"]');
+            if (btn) {
+                btn.disabled = true;
+                btn.classList.add('opacity-75', 'cursor-not-allowed');
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Memproses Pesanan...';
+            }
+        });
+    }
 </script>
 @endsection
