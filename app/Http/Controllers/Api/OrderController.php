@@ -125,6 +125,8 @@ class OrderController extends Controller
             'ready_time'       => $order->ready_time?->format('d M Y H:i'),
             'delivery_time'    => $order->delivery_time?->format('d M Y H:i'),
             'completed_time'   => $order->completed_time?->format('d M Y H:i'),
+            'created_at'       => $order->created_at?->toIso8601String(),
+            'can_cancel'       => $order->status->value !== 'CANCELLED' && $order->created_at && $order->created_at->diffInMinutes(now()) <= 60,
             'customer' => [
                 'id'     => $order->customer->id,
                 'name'   => $order->customer->name,
@@ -308,6 +310,14 @@ class OrderController extends Controller
             $order = Order::with('products')->where('order_number', $order_number)
                 ->whereIn('status', ['DRAFT', 'NEW', 'PENDING', 'PAID', 'PREPARED', 'READY', 'ON_DELIVERY', 'COMPLETE'])
                 ->firstOrFail();
+
+            // Batasi pembatalan maksimal 60 menit sejak pesanan dibuat demi mencegah manipulasi nota lama
+            if ($order->created_at && $order->created_at->diffInMinutes(now()) > 60) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Pesanan tidak dapat dibatalkan karena sudah lewat dari 60 menit sejak transaksi dibuat demi keamanan pembukuan.'
+                ], 422);
+            }
 
             $reason = $request->input('reason', 'Dibatalkan oleh kasir');
 
