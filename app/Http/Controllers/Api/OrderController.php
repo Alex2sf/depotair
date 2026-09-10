@@ -126,6 +126,7 @@ class OrderController extends Controller
             'delivery_time'    => $order->delivery_time?->format('d M Y H:i'),
             'completed_time'   => $order->completed_time?->format('d M Y H:i'),
             'created_at'       => $order->created_at?->toIso8601String(),
+            'formatted_created_at' => $order->created_at?->translatedFormat('d M Y, H:i') ?? $order->created_at?->format('d M Y, H:i'),
             'can_cancel'       => $order->status->value !== 'CANCELLED' && $order->created_at && $order->created_at->diffInMinutes(now()) <= 60,
             'customer' => [
                 'id'     => $order->customer->id,
