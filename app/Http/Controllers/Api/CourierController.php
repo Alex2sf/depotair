@@ -142,25 +142,36 @@ class CourierController extends Controller
   // ==================== SELESAI ANTAR (FIXED — NO SYMLINK NEEDED!) ====================
 public function complete($order_number, Request $request)
 {
-    // VALIDASI FOTO: WAJIB, maks 5MB, format JPG/PNG
+    // VALIDASI FOTO: WAJIB, maks 10MB, format JPG/PNG/WEBP
     $request->validate([
-        'image' => [
-            'required',
-            'image',
-            'mimes:jpeg,jpg,png',
-            'max:5120', // 5MB
-            'dimensions:max_width=4096,max_height=4096',
-        ],
+        'image' => 'required|image|mimes:jpeg,jpg,png,webp|max:10240',
         'notes' => 'nullable|string|max:500',
     ]);
 
     $kurir = $request->user();
 
-    // Ambil order yang sedang diantar oleh kurir ini
+    // Ambil order yang sedang diantar (support kurir terkait atau admin/owner)
     $order = Order::where('order_number', $order_number)
-        ->where('courier_id', $kurir->id)
         ->where('status', 'ON_DELIVERY')
-        ->firstOrFail();
+        ->when(!in_array($kurir->role, ['admin', 'owner']), function ($q) use ($kurir) {
+            $q->where(function($sub) use ($kurir) {
+                $sub->where('courier_id', $kurir->id)
+                    ->orWhereNull('courier_id');
+            });
+        })
+        ->first();
+
+    if (!$order) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Pesanan tidak ditemukan atau status bukan sedang diantar (ON_DELIVERY).'
+        ], 404);
+    }
+
+    // Jika courier_id belum tercatat, assign ke user yang menyelesaikan
+    if (!$order->courier_id) {
+        $order->update(['courier_id' => $kurir->id]);
+    }
 
     // Anti double upload
     if ($order->deliveryProof()->exists()) {
@@ -173,39 +184,35 @@ public function complete($order_number, Request $request)
     return DB::transaction(function () use ($order, $request, $kurir) {
         $image = $request->file('image');
 
-        // Detect public_html for Shared Hosting
-        // Current: .../public_html/depot/public
-        // Target: .../public_html/delivery_proof
-        $basePublicPath = public_path();
-        $targetFolder = $basePublicPath . '/delivery_proof'; // Default: depot/public/delivery_proof
-        
-        // Cek apakah kita ada di dalam subfolder (misal: depot/public) dan ingin simpan di root public_html
-        if (str_contains($basePublicPath, 'depot\public') || str_contains($basePublicPath, 'depot/public')) {
-            // Naik 2 level: depot/public -> depot -> public_html
-            $candidatePath = dirname($basePublicPath, 2) . '/delivery_proof';
-            if (is_dir(dirname($candidatePath))) { // Pastikan parent (public_html) ada
-                $targetFolder = $candidatePath;
+        $fullUrl = null;
+        try {
+            $basePublicPath = public_path();
+            $targetFolder = $basePublicPath . '/delivery_proof';
+            
+            if (str_contains($basePublicPath, 'depot\public') || str_contains($basePublicPath, 'depot/public')) {
+                $candidatePath = dirname($basePublicPath, 2) . '/delivery_proof';
+                if (is_dir(dirname($candidatePath))) {
+                    $targetFolder = $candidatePath;
+                }
             }
+
+            if (!file_exists($targetFolder)) {
+                @mkdir($targetFolder, 0755, true);
+            }
+
+            $filename = $order->order_number . '_' . time() . '.' . $image->getClientOriginalExtension();
+            $image->move($targetFolder, $filename);
+            $fullUrl = asset('delivery_proof/' . $filename);
+        } catch (\Exception $e) {
+            // Fallback jika direct folder tidak writable
+            $path = $image->store('delivery_proof', 'public');
+            $fullUrl = asset('storage/' . $path);
         }
-
-        if (!file_exists($targetFolder)) {
-            mkdir($targetFolder, 0755, true);
-        }
-
-        // Nama file unik
-        $filename = $order->order_number . '_' . time() . '.' . $image->getClientOriginalExtension();
-
-        // SIMPAN KE FOLDER TUJUAN
-        $image->move($targetFolder, $filename);
-
-        // URL YANG BENAR & PASTI JALAN
-        $url = '/delivery_proof/' . $filename;
-        $fullUrl = asset($url); // https://hydroexpert.my.id/delivery_proof/...
 
         // Simpan bukti
         $order->deliveryProof()->create([
             'uploaded_by' => $kurir->id,
-            'image_url'   => $fullUrl,  // LANGSUNG FULL URL!
+            'image_url'   => $fullUrl,
             'notes'       => $request->notes ?? null,
         ]);
 
@@ -218,7 +225,7 @@ public function complete($order_number, Request $request)
         return response()->json([
             'success'    => true,
             'message'    => 'Pesanan selesai diantar! Bukti foto tersimpan.',
-            'image_url'  => $fullUrl,  // LANGSUNG BISA DIPAKE DI FLUTTER!
+            'image_url'  => $fullUrl,
         ]);
     });
 }

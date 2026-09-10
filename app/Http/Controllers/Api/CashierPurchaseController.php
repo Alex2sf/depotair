@@ -40,7 +40,17 @@ class CashierPurchaseController extends Controller
         // Upload bukti foto nota jika ada
         $proofImagePath = null;
         if ($request->hasFile('proof_image')) {
-            $proofImagePath = $request->file('proof_image')->store('purchases', 'public');
+            try {
+                $proofImagePath = $request->file('proof_image')->store('purchases', 'public');
+            } catch (\Exception $e) {
+                $targetFolder = public_path('purchases');
+                if (!file_exists($targetFolder)) {
+                    @mkdir($targetFolder, 0755, true);
+                }
+                $filename = 'purchase_' . time() . '_' . uniqid() . '.' . $request->file('proof_image')->getClientOriginalExtension();
+                $request->file('proof_image')->move($targetFolder, $filename);
+                $proofImagePath = 'purchases/' . $filename;
+            }
         }
 
         return DB::transaction(function () use ($user, $category, $productId, $quantity, $amount, $description, $proofImagePath) {

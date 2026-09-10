@@ -70,7 +70,7 @@ class CashController extends Controller
             'amount'        => 'required|integer|min:0',
             'on_behalf_of'  => 'nullable|exists:users,id',
             'notes'         => 'nullable|string|max:200',
-            'proof_image'   => 'nullable|image|max:10240', // Maks 10MB foto bukti
+            'proof_image'   => 'nullable|image|mimes:jpeg,jpg,png,webp|max:10240',
         ]);
 
         $amount       = $request->amount;
@@ -80,17 +80,37 @@ class CashController extends Controller
         // Simpan foto bukti jika ada
         $proofImagePath = null;
         if ($request->hasFile('proof_image')) {
-            $proofImagePath = $request->file('proof_image')->store('deposits', 'public');
+            try {
+                $proofImagePath = $request->file('proof_image')->store('deposits', 'public');
+            } catch (\Exception $e) {
+                // Fallback jika storage link atau permission error
+                $targetFolder = public_path('deposits');
+                if (!file_exists($targetFolder)) {
+                    @mkdir($targetFolder, 0755, true);
+                }
+                $filename = 'deposit_' . time() . '_' . uniqid() . '.' . $request->file('proof_image')->getClientOriginalExtension();
+                $request->file('proof_image')->move($targetFolder, $filename);
+                $proofImagePath = 'deposits/' . $filename;
+            }
         }
 
         return DB::transaction(function () use ($amount, $recordedBy, $onBehalfOf, $proofImagePath, $request) {
-            $cashier = CashBalance::where('type', 'CASHIER')->firstOrFail();
+            $cashier = CashBalance::firstOrCreate(
+                ['type' => CashBalance::CASHIER],
+                ['balance' => 0]
+            );
 
             if ($amount > $cashier->balance) {
-                return response()->json(['success' => false, 'message' => 'Saldo kasir tidak cukup!'], 400);
+                return response()->json([
+                    'success' => false, 
+                    'message' => 'Saldo kasir tidak cukup! Saldo saat ini: Rp ' . number_format($cashier->balance, 0, ',', '.')
+                ], 400);
             }
 
-            $main = CashBalance::where('type', 'MAIN')->firstOrFail();
+            $main = CashBalance::firstOrCreate(
+                ['type' => CashBalance::MAIN],
+                ['balance' => 0]
+            );
             $cashier->decrement('balance', $amount);
             $main->increment('balance', $amount);
 
