@@ -111,6 +111,22 @@ class OrderController extends Controller
     }
 
 
+    $statusStr = is_object($order->status) ? ($order->status->value ?? '') : (string)$order->status;
+    $orderTypeStr = is_object($order->order_type) ? ($order->order_type->value ?? '') : (string)$order->order_type;
+
+    $canCancel = false;
+    if ($statusStr !== 'CANCELLED') {
+        if ($orderTypeStr === 'DELIVERY') {
+            if (!in_array($statusStr, ['ON_DELIVERY', 'COMPLETE', 'CANCELLED'])) {
+                $withinCreationWindow = $order->created_at && $order->created_at->diffInMinutes(now()) <= 60;
+                $beforeScheduledWindow = $order->delivery_scheduled_at && now()->addMinutes(60)->lte($order->delivery_scheduled_at);
+                $canCancel = $withinCreationWindow || $beforeScheduledWindow;
+            }
+        } else {
+            $canCancel = $order->created_at && $order->created_at->diffInMinutes(now()) <= 60;
+        }
+    }
+
     $response = [
         'success' => true,
         'order' => [
@@ -129,7 +145,7 @@ class OrderController extends Controller
             'formatted_created_at' => $order->created_at?->format('d/m/Y H:i'),
             'transaction_time' => $order->created_at?->format('d/m/Y H:i'),
             'date'             => $order->created_at?->format('d/m/Y H:i'),
-            'can_cancel'       => $order->status->value !== 'CANCELLED' && $order->created_at && $order->created_at->diffInMinutes(now()) <= 60,
+            'can_cancel'       => $canCancel,
             'customer' => [
                 'id'     => $order->customer->id,
                 'name'   => $order->customer->name,
@@ -310,16 +326,56 @@ class OrderController extends Controller
     public function cancelOrder($order_number, Request $request)
     {
         try {
-            $order = Order::with('products')->where('order_number', $order_number)
-                ->whereIn('status', ['DRAFT', 'NEW', 'PENDING', 'PAID', 'PREPARED', 'READY', 'ON_DELIVERY', 'COMPLETE'])
-                ->firstOrFail();
+            $order = Order::with('products')->where('order_number', $order_number)->firstOrFail();
+            $statusStr = is_object($order->status) ? ($order->status->value ?? '') : (string)$order->status;
+            $orderTypeStr = is_object($order->order_type) ? ($order->order_type->value ?? '') : (string)$order->order_type;
 
-            // Batasi pembatalan maksimal 60 menit sejak pesanan dibuat demi mencegah manipulasi nota lama
-            if ($order->created_at && $order->created_at->diffInMinutes(now()) > 60) {
+            if ($statusStr === 'CANCELLED') {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Pesanan tidak dapat dibatalkan karena sudah lewat dari 60 menit sejak transaksi dibuat demi keamanan pembukuan.'
+                    'message' => 'Pesanan ini sudah dibatalkan sebelumnya.'
                 ], 422);
+            }
+
+            if ($orderTypeStr === 'DELIVERY') {
+                if ($statusStr === 'ON_DELIVERY') {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Pesanan sedang dalam pengantaran oleh kurir di jalan. Hubungi kurir atau selesaikan kendala melalui kurir demi keamanan barang.'
+                    ], 422);
+                }
+
+                if ($statusStr === 'COMPLETE') {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Pesanan antar yang sudah selesai diantar tidak dapat dibatalkan.'
+                    ], 422);
+                }
+
+                $withinCreationWindow = $order->created_at && $order->created_at->diffInMinutes(now()) <= 60;
+                $beforeScheduledWindow = $order->delivery_scheduled_at && now()->addMinutes(60)->lte($order->delivery_scheduled_at);
+
+                if (!$withinCreationWindow && !$beforeScheduledWindow) {
+                    if ($order->delivery_scheduled_at && now()->gt($order->delivery_scheduled_at->copy()->subMinutes(60))) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Pesanan terjadwal tidak dapat dibatalkan karena sudah masuk batas 1 jam sebelum jadwal pengantaran (' . $order->delivery_scheduled_at->format('d/m/Y H:i') . ').'
+                        ], 422);
+                    }
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Pesanan tidak dapat dibatalkan karena sudah lewat dari 60 menit sejak transaksi dibuat.'
+                    ], 422);
+                }
+            } else {
+                // SELF_PICKUP
+                if ($order->created_at && $order->created_at->diffInMinutes(now()) > 60) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Pesanan tidak dapat dibatalkan karena sudah lewat dari 60 menit sejak transaksi dibuat demi keamanan pembukuan.'
+                    ], 422);
+                }
             }
 
             $reason = $request->input('reason', 'Dibatalkan oleh kasir');
