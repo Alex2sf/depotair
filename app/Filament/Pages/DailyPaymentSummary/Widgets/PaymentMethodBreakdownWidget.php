@@ -22,24 +22,28 @@ class PaymentMethodBreakdownWidget extends BaseWidget
     protected function getStats(): array
     {
         $filter = $this->tableFilters['date'] ?? null;
-        $dariTanggal = $filter['dari_tanggal'] ?? null;
-        $sampaiTanggal = $filter['sampai_tanggal'] ?? null;
+        $jenis = $filter['jenis_filter'] ?? null;
 
         $query = DailyPaymentReport::query();
 
-        if (!empty($dariTanggal) || !empty($sampaiTanggal)) {
-            if (!empty($dariTanggal)) {
-                $query->whereDate('date', '>=', $dariTanggal);
-            }
-            if (!empty($sampaiTanggal)) {
-                $query->whereDate('date', '<=', $sampaiTanggal);
-            }
-        } elseif (($filter['jenis_periode'] ?? '') === 'Tahun' && !empty($filter['tahun'])) {
+        if ($jenis === 'rentang' && !empty($filter['rentang_tanggal'])) {
+            $dates = explode(' to ', $filter['rentang_tanggal']);
+            $start = trim($dates[0]);
+            $end = trim($dates[1] ?? $dates[0]);
+
+            $query->whereDate('date', '>=', $start)->whereDate('date', '<=', $end);
+        } elseif ($jenis === 'tahun' && !empty($filter['tahun'])) {
             $query->whereYear('date', $filter['tahun']);
-        } elseif (($filter['jenis_periode'] ?? '') === 'Bulan' && !empty($filter['bulan'])) {
-            $month = substr($filter['bulan'], 5, 2);
-            $year = substr($filter['bulan'], 0, 4);
-            $query->whereMonth('date', $month)->whereYear('date', $year);
+        } elseif ($jenis === 'bulan' && !empty($filter['bulan'])) {
+            $year = $filter['tahun_bulan'] ?? date('Y');
+            $query->whereMonth('date', $filter['bulan'])->whereYear('date', $year);
+        } elseif (!empty($filter['dari_tanggal']) || !empty($filter['sampai_tanggal'])) {
+            if (!empty($filter['dari_tanggal'])) {
+                $query->whereDate('date', '>=', $filter['dari_tanggal']);
+            }
+            if (!empty($filter['sampai_tanggal'])) {
+                $query->whereDate('date', '<=', $filter['sampai_tanggal']);
+            }
         } else {
             $query->whereMonth('date', now()->month)->whereYear('date', now()->year);
         }

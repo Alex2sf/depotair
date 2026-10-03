@@ -22,6 +22,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        \Filament\Support\Facades\FilamentAsset::register([
+            \Filament\Support\Assets\Css::make('flatpickr-css', asset('vendor/flatpickr/flatpickr.min.css')),
+            \Filament\Support\Assets\Js::make('flatpickr-js', asset('vendor/flatpickr/flatpickr.min.js')),
+            \Filament\Support\Assets\Js::make('flatpickr-id', asset('vendor/flatpickr/l10n/id.js')),
+        ]);
+
         Table::configureUsing(function (Table $table): void {
             $table
                 ->filtersLayout(FiltersLayout::Modal)

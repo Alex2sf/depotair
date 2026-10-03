@@ -22,34 +22,34 @@ class GeneralJournalStatsOverview extends BaseWidget
     protected function getStats(): array
     {
         $filter = $this->tableFilters['transaction_date'] ?? null;
-        $dariTanggal = $filter['dari_tanggal'] ?? null;
-        $sampaiTanggal = $filter['sampai_tanggal'] ?? null;
+        $jenis = $filter['jenis_filter'] ?? null;
 
         $query = GeneralJournal::query();
 
-        if (!empty($dariTanggal) || !empty($sampaiTanggal)) {
-            if (!empty($dariTanggal)) {
-                $query->whereDate('transaction_date', '>=', $dariTanggal);
-            }
-            if (!empty($sampaiTanggal)) {
-                $query->whereDate('transaction_date', '<=', $sampaiTanggal);
-            }
-
-            if (!empty($dariTanggal) && !empty($sampaiTanggal)) {
-                $periodLabel = \Carbon\Carbon::parse($dariTanggal)->format('d/m/Y') . ' - ' . \Carbon\Carbon::parse($sampaiTanggal)->format('d/m/Y');
-            } elseif (!empty($dariTanggal)) {
-                $periodLabel = 'Mulai ' . \Carbon\Carbon::parse($dariTanggal)->format('d/m/Y');
-            } else {
-                $periodLabel = 'Sampai ' . \Carbon\Carbon::parse($sampaiTanggal)->format('d/m/Y');
-            }
-        } elseif (($filter['jenis_periode'] ?? '') === 'Tahun' && !empty($filter['tahun'])) {
+        if ($jenis === 'rentang' && !empty($filter['rentang_tanggal'])) {
+            $dates = explode(' to ', $filter['rentang_tanggal']);
+            $start = trim($dates[0]);
+            $end = trim($dates[1] ?? $dates[0]);
+            $query->whereDate('transaction_date', '>=', $start)
+                  ->whereDate('transaction_date', '<=', $end);
+            $periodLabel = \Carbon\Carbon::parse($start)->format('d/m/Y') . ' - ' . \Carbon\Carbon::parse($end)->format('d/m/Y');
+        } elseif ($jenis === 'tahun' && !empty($filter['tahun'])) {
             $query->whereYear('transaction_date', $filter['tahun']);
             $periodLabel = 'Tahun ' . $filter['tahun'];
-        } elseif (($filter['jenis_periode'] ?? '') === 'Bulan' && !empty($filter['bulan'])) {
-            $month = substr($filter['bulan'], 5, 2);
-            $year = substr($filter['bulan'], 0, 4);
-            $query->whereMonth('transaction_date', $month)->whereYear('transaction_date', $year);
-            $periodLabel = date('M Y', strtotime($filter['bulan'] . '-01'));
+        } elseif ($jenis === 'bulan' && !empty($filter['bulan'])) {
+            $year = $filter['tahun_bulan'] ?? date('Y');
+            $query->whereMonth('transaction_date', $filter['bulan'])
+                  ->whereYear('transaction_date', $year);
+            $monthName = \Carbon\Carbon::createFromDate(null, (int) $filter['bulan'], 1)->translatedFormat('M');
+            $periodLabel = "{$monthName} {$year}";
+        } elseif (!empty($filter['dari_tanggal']) || !empty($filter['sampai_tanggal'])) {
+            if (!empty($filter['dari_tanggal'])) {
+                $query->whereDate('transaction_date', '>=', $filter['dari_tanggal']);
+            }
+            if (!empty($filter['sampai_tanggal'])) {
+                $query->whereDate('transaction_date', '<=', $filter['sampai_tanggal']);
+            }
+            $periodLabel = 'Rentang Tanggal';
         } else {
             // Default: bulan ini
             $query->whereMonth('transaction_date', now()->month)->whereYear('transaction_date', now()->year);
