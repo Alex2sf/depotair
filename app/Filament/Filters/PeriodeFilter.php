@@ -12,6 +12,41 @@ use Carbon\Carbon;
 
 class PeriodeFilter
 {
+    /**
+     * Parse date range string with robust separator handling (" - ", " to ", "s/d", etc.)
+     *
+     * @return array{0: ?string, 1: ?string} [startDate, endDate] in Y-m-d format
+     */
+    public static function parseDateRange(?string $dateRange): array
+    {
+        if (empty($dateRange)) {
+            return [null, null];
+        }
+
+        $parts = preg_split('/\s+(?:to|-|s\/d|s\.d\.)\s+/', trim($dateRange));
+
+        $start = !empty($parts[0]) ? trim($parts[0]) : null;
+        $end = !empty($parts[1]) ? trim($parts[1]) : $start;
+
+        try {
+            if ($start) {
+                $start = Carbon::parse($start)->format('Y-m-d');
+            }
+        } catch (\Throwable) {
+            $start = null;
+        }
+
+        try {
+            if ($end) {
+                $end = Carbon::parse($end)->format('Y-m-d');
+            }
+        } catch (\Throwable) {
+            $end = null;
+        }
+
+        return [$start, $end];
+    }
+
     public static function make(string $name = 'periode', string $column = 'created_at', string $label = 'Periode'): Filter
     {
         return Filter::make($name)
@@ -82,12 +117,12 @@ class PeriodeFilter
                 $jenis = $data['jenis_filter'] ?? 'bulan';
 
                 if ($jenis === 'rentang' && !empty($data['rentang_tanggal'])) {
-                    $dates = explode(' to ', $data['rentang_tanggal']);
-                    $start = trim($dates[0]);
-                    $end = trim($dates[1] ?? $dates[0]);
+                    [$start, $end] = static::parseDateRange($data['rentang_tanggal']);
 
-                    return $query->whereDate($column, '>=', $start)
-                                 ->whereDate($column, '<=', $end);
+                    if ($start && $end) {
+                        return $query->whereDate($column, '>=', $start)
+                                     ->whereDate($column, '<=', $end);
+                    }
                 }
 
                 if ($jenis === 'tahun' && !empty($data['tahun'])) {
@@ -114,10 +149,10 @@ class PeriodeFilter
                 $jenis = $data['jenis_filter'] ?? null;
 
                 if ($jenis === 'rentang' && !empty($data['rentang_tanggal'])) {
-                    $dates = explode(' to ', $data['rentang_tanggal']);
-                    $start = trim($dates[0]);
-                    $end = trim($dates[1] ?? $dates[0]);
-                    $indicators[] = 'Rentang: ' . Carbon::parse($start)->format('d/m/Y') . ' s/d ' . Carbon::parse($end)->format('d/m/Y');
+                    [$start, $end] = static::parseDateRange($data['rentang_tanggal']);
+                    if ($start && $end) {
+                        $indicators[] = 'Rentang: ' . Carbon::parse($start)->format('d/m/Y') . ' s/d ' . Carbon::parse($end)->format('d/m/Y');
+                    }
                 } elseif ($jenis === 'tahun' && !empty($data['tahun'])) {
                     $indicators[] = 'Tahun: ' . $data['tahun'];
                 } elseif ($jenis === 'bulan' && !empty($data['bulan'])) {

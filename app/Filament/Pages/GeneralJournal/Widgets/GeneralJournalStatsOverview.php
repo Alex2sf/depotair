@@ -27,12 +27,14 @@ class GeneralJournalStatsOverview extends BaseWidget
         $query = GeneralJournal::query();
 
         if ($jenis === 'rentang' && !empty($filter['rentang_tanggal'])) {
-            $dates = explode(' to ', $filter['rentang_tanggal']);
-            $start = trim($dates[0]);
-            $end = trim($dates[1] ?? $dates[0]);
-            $query->whereDate('transaction_date', '>=', $start)
-                  ->whereDate('transaction_date', '<=', $end);
-            $periodLabel = \Carbon\Carbon::parse($start)->format('d/m/Y') . ' - ' . \Carbon\Carbon::parse($end)->format('d/m/Y');
+            [$start, $end] = \App\Filament\Filters\PeriodeFilter::parseDateRange($filter['rentang_tanggal']);
+            if ($start && $end) {
+                $query->whereDate('transaction_date', '>=', $start)
+                      ->whereDate('transaction_date', '<=', $end);
+                $periodLabel = \Carbon\Carbon::parse($start)->format('d/m/Y') . ' - ' . \Carbon\Carbon::parse($end)->format('d/m/Y');
+            } else {
+                $periodLabel = 'Rentang Tanggal';
+            }
         } elseif ($jenis === 'tahun' && !empty($filter['tahun'])) {
             $query->whereYear('transaction_date', $filter['tahun']);
             $periodLabel = 'Tahun ' . $filter['tahun'];

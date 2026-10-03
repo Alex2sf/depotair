@@ -31,15 +31,16 @@ class DailyFinancialSummaryWidget extends BaseWidget
         $purchaseQuery = CashierPurchase::query();
 
         if ($jenis === 'rentang' && !empty($filter['rentang_tanggal'])) {
-            $dates = explode(' to ', $filter['rentang_tanggal']);
-            $start = trim($dates[0]);
-            $end = trim($dates[1] ?? $dates[0]);
+            [$start, $end] = \App\Filament\Filters\PeriodeFilter::parseDateRange($filter['rentang_tanggal']);
+            if ($start && $end) {
+                $incomeQuery->whereDate('date', '>=', $start)->whereDate('date', '<=', $end);
+                $expenseTxQuery->whereDate('created_at', '>=', $start)->whereDate('created_at', '<=', $end);
+                $purchaseQuery->whereDate('created_at', '>=', $start)->whereDate('created_at', '<=', $end);
 
-            $incomeQuery->whereDate('date', '>=', $start)->whereDate('date', '<=', $end);
-            $expenseTxQuery->whereDate('created_at', '>=', $start)->whereDate('created_at', '<=', $end);
-            $purchaseQuery->whereDate('created_at', '>=', $start)->whereDate('created_at', '<=', $end);
-
-            $periodLabel = \Carbon\Carbon::parse($start)->format('d/m/Y') . ' - ' . \Carbon\Carbon::parse($end)->format('d/m/Y');
+                $periodLabel = \Carbon\Carbon::parse($start)->format('d/m/Y') . ' - ' . \Carbon\Carbon::parse($end)->format('d/m/Y');
+            } else {
+                $periodLabel = 'Rentang Tanggal';
+            }
         } elseif ($jenis === 'tahun' && !empty($filter['tahun'])) {
             $incomeQuery->whereYear('date', $filter['tahun']);
             $expenseTxQuery->whereYear('created_at', $filter['tahun']);

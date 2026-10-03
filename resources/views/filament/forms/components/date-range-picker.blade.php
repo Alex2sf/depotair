@@ -63,13 +63,20 @@
                     ? window.flatpickr.l10ns.id 
                     : {};
 
+                const splitRange = (val) => {
+                    if (!val) return null;
+                    if (val.includes(' - ')) return val.split(' - ');
+                    if (val.includes(' to ')) return val.split(' to ');
+                    return [val, val];
+                };
+
                 this.picker = flatpickr(this.$refs.pickerInput, {
                     mode: 'range',
                     dateFormat: 'Y-m-d',
                     altInput: true,
                     altFormat: 'j M Y',
                     locale: localeConfig,
-                    defaultDate: this.state ? this.state.split(' to ') : null,
+                    defaultDate: splitRange(this.state),
                     onChange: (selectedDates, dateStr) => {
                         if (selectedDates.length === 2) {
                             this.state = dateStr;
@@ -77,7 +84,8 @@
                     },
                     onClose: (selectedDates, dateStr) => {
                         if (selectedDates.length === 1) {
-                            this.state = dateStr + ' to ' + dateStr;
+                            const sep = (localeConfig && localeConfig.rangeSeparator) ? localeConfig.rangeSeparator : ' - ';
+                            this.state = dateStr + sep + dateStr;
                         } else if (selectedDates.length === 2) {
                             this.state = dateStr;
                         }
@@ -87,8 +95,11 @@
                 this.$watch('state', (newVal) => {
                     if (!newVal && this.picker) {
                         this.picker.clear();
-                    } else if (newVal && this.picker && this.picker.input.value !== newVal) {
-                        this.picker.setDate(newVal.split(' to '), false);
+                    } else if (newVal && this.picker) {
+                        const parts = splitRange(newVal);
+                        if (parts) {
+                            this.picker.setDate(parts, false);
+                        }
                     }
                 });
             },

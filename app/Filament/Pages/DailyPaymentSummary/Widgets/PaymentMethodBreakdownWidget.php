@@ -27,11 +27,10 @@ class PaymentMethodBreakdownWidget extends BaseWidget
         $query = DailyPaymentReport::query();
 
         if ($jenis === 'rentang' && !empty($filter['rentang_tanggal'])) {
-            $dates = explode(' to ', $filter['rentang_tanggal']);
-            $start = trim($dates[0]);
-            $end = trim($dates[1] ?? $dates[0]);
-
-            $query->whereDate('date', '>=', $start)->whereDate('date', '<=', $end);
+            [$start, $end] = \App\Filament\Filters\PeriodeFilter::parseDateRange($filter['rentang_tanggal']);
+            if ($start && $end) {
+                $query->whereDate('date', '>=', $start)->whereDate('date', '<=', $end);
+            }
         } elseif ($jenis === 'tahun' && !empty($filter['tahun'])) {
             $query->whereYear('date', $filter['tahun']);
         } elseif ($jenis === 'bulan' && !empty($filter['bulan'])) {
