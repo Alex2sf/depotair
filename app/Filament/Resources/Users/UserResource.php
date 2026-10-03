@@ -28,6 +28,27 @@ class UserResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'name';
 
+    public static function canViewAny(): bool
+    {
+        $user = auth()->user();
+        if (! $user) {
+            return false;
+        }
+
+        if (
+            $user->hasRole('super_admin')
+            || $user->hasRole('owner')
+            || $user->hasRole('admin')
+            || in_array($user->role ?? '', ['super_admin', 'owner', 'admin'])
+            || $user->can('ViewAny:User')
+            || $user->can('manage users')
+        ) {
+            return true;
+        }
+
+        return static::can('viewAny');
+    }
+
     public static function form(Schema $schema): Schema
     {
         return UserForm::configure($schema);

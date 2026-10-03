@@ -12,9 +12,23 @@ class UserPolicy
 {
     use HandlesAuthorization;
     
+    public function before(AuthUser $authUser, string $ability): ?bool
+    {
+        if (
+            $authUser->hasRole('super_admin')
+            || $authUser->hasRole('owner')
+            || $authUser->hasRole('admin')
+            || in_array($authUser->role ?? '', ['super_admin', 'owner', 'admin'])
+        ) {
+            return true;
+        }
+
+        return null;
+    }
+
     public function viewAny(AuthUser $authUser): bool
     {
-        return $authUser->can('ViewAny:User');
+        return $authUser->can('ViewAny:User') || $authUser->can('manage users');
     }
 
     public function view(AuthUser $authUser, User $user): bool

@@ -12,6 +12,19 @@ class RolePolicy
 {
     use HandlesAuthorization;
     
+    public function before(AuthUser $authUser, string $ability): ?bool
+    {
+        if (
+            $authUser->hasRole('super_admin')
+            || $authUser->hasRole('owner')
+            || in_array($authUser->role ?? '', ['super_admin', 'owner'])
+        ) {
+            return true;
+        }
+
+        return null;
+    }
+
     public function viewAny(AuthUser $authUser): bool
     {
         return $authUser->can('ViewAny:Role');
