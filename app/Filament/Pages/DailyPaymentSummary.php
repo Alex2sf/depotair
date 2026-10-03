@@ -22,11 +22,32 @@ class DailyPaymentSummary extends Page implements HasTable
     protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-currency-dollar';
     protected string $view = 'filament.pages.daily-payment-summary';
     protected static ?string $navigationLabel = 'Laporan Pembayaran';
-    protected static ?string $title = 'Rekap Pembayaran Harian';
+    protected static ?string $title = 'Rekap Keuangan & Pembayaran';
+
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            \App\Filament\Pages\DailyPaymentSummary\Widgets\DailyFinancialSummaryWidget::class,
+            \App\Filament\Pages\DailyPaymentSummary\Widgets\PaymentMethodBreakdownWidget::class,
+        ];
+    }
+
+    public function getHeaderWidgetsColumns(): int | array
+    {
+        return 1;
+    }
+
+    public function getWidgetData(): array
+    {
+        return [
+            'tableFilters' => $this->tableFilters,
+        ];
+    }
 
     public function table(Table $table): Table
     {
         return $table
+            ->heading('Rincian Pembayaran per Tanggal')
             ->query(
                 \App\Models\DailyPaymentReport::query()
                     ->orderByDesc('date')
