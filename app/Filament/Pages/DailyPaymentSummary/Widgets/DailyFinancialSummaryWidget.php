@@ -18,7 +18,7 @@ class DailyFinancialSummaryWidget extends BaseWidget
 
     protected function getColumns(): int
     {
-        return 3;
+        return 4;
     }
 
     protected function getStats(): array
@@ -63,14 +63,20 @@ class DailyFinancialSummaryWidget extends BaseWidget
         }
 
         $totalPemasukan = (int) $incomeQuery->sum('grand_total');
+        $totalPending = (int) (clone $incomeQuery)->sum('pending_total');
         $totalPengeluaran = (int) $expenseTxQuery->sum('amount') + (int) $purchaseQuery->sum('amount');
         $kasBersih = $totalPemasukan - $totalPengeluaran;
 
         return [
-            Stat::make('Total Pemasukan (Omzet)', 'Rp ' . number_format($totalPemasukan, 0, ',', '.'))
-                ->description('Total penjualan ' . $periodLabel)
-                ->descriptionIcon('heroicon-m-arrow-trending-up')
+            Stat::make('Pemasukan Selesai', 'Rp ' . number_format($totalPemasukan, 0, ',', '.'))
+                ->description('Omzet sah pesanan ' . $periodLabel)
+                ->descriptionIcon('heroicon-m-check-badge')
                 ->color('success'),
+
+            Stat::make('Siap / Diantar (Pending)', 'Rp ' . number_format($totalPending, 0, ',', '.'))
+                ->description('Pesanan belum selesai diantar')
+                ->descriptionIcon('heroicon-m-truck')
+                ->color('warning'),
 
             Stat::make('Total Pengeluaran', 'Rp ' . number_format($totalPengeluaran, 0, ',', '.'))
                 ->description('Belanja kasir & operasional kas')

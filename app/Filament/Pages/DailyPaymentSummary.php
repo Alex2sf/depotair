@@ -22,6 +22,7 @@ class DailyPaymentSummary extends Page implements HasTable
     protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-currency-dollar';
     protected string $view = 'filament.pages.daily-payment-summary';
     protected static ?string $navigationLabel = 'Laporan Pembayaran';
+    protected static string | \UnitEnum | null $navigationGroup = 'Keuangan';
     protected static ?string $title = 'Rekap Keuangan & Pembayaran';
 
     protected function getHeaderWidgets(): array
@@ -74,10 +75,16 @@ class DailyPaymentSummary extends Page implements HasTable
                     ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))
                     ->summarize(Sum::make()->label('Total')->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))),
                 TextColumn::make('grand_total')
-                    ->label('Total Harian')
+                    ->label('Total Selesai')
                     ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))
                     ->weight('bold')
+                    ->color('success')
                     ->summarize(Sum::make()->label('Total')->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))),
+                TextColumn::make('pending_total')
+                    ->label('Siap / Diantar')
+                    ->formatStateUsing(fn ($state) => $state > 0 ? 'Rp ' . number_format($state, 0, ',', '.') : '-')
+                    ->color(fn ($state) => $state > 0 ? 'warning' : 'gray')
+                    ->summarize(Sum::make()->label('Total Pending')->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))),
             ])
                 ->filters([
                  \App\Filament\Filters\PeriodeFilter::make('date', 'date', 'Periode Laporan') 
@@ -92,9 +99,9 @@ class DailyPaymentSummary extends Page implements HasTable
                         ->orderByDesc('date')
                         ->get();
 
-                     $csv = "Tanggal,Tunai,QRIS,Transfer,Corporate,Total\n";
+                     $csv = "Tanggal,Tunai,QRIS,Transfer,Corporate,Total Selesai,Pending/Diantar\n";
                      foreach($query as $row) {
-                        $csv .= "{$row->date},{$row->tunai_total},{$row->qris_total},{$row->transfer_total},{$row->corporate_total},{$row->grand_total}\n";
+                        $csv .= "{$row->date},{$row->tunai_total},{$row->qris_total},{$row->transfer_total},{$row->corporate_total},{$row->grand_total},{$row->pending_total}\n";
                      }
 
                      return response()->streamDownload(function () use ($csv) {

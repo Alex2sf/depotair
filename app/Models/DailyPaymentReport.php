@@ -17,6 +17,7 @@ class DailyPaymentReport extends Model
         'transfer_total' => 'integer',
         'corporate_total' => 'integer',
         'grand_total' => 'integer',
+        'pending_total' => 'integer',
         // created_at removed from view
     ];
 }
