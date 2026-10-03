@@ -2,7 +2,6 @@
 
 namespace App\Models;
 use App\Traits\LogsActivity;
-use App\Enums\ProductType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -51,7 +50,7 @@ class Product extends Model
      */
     public function productTypeRelation(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(ProductType::class, 'product_type', 'code');
+        return $this->belongsTo(\App\Models\ProductType::class, 'product_type', 'code');
     }
 
     /**
