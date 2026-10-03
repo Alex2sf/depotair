@@ -72,7 +72,8 @@ class GeneralJournal extends Page implements HasTable
                         'Penjualan' => 'success',
                         'Belanja Stok' => 'info',
                         'Operasional Toko' => 'warning',
-                        'Kas Masuk' => 'success',
+                        'Setor Kas' => 'danger',
+                        'Modal Kas' => 'success',
                         'Pengeluaran Kas' => 'danger',
                         default => 'secondary',
                     })
@@ -145,7 +146,8 @@ class GeneralJournal extends Page implements HasTable
                         'Penjualan' => 'Penjualan Air/Barang',
                         'Belanja Stok' => 'Belanja Stok',
                         'Operasional Toko' => 'Operasional Toko',
-                        'Kas Masuk' => 'Kas Masuk (Deposit)',
+                        'Setor Kas' => 'Setor Kas (Uang Keluar)',
+                        'Modal Kas' => 'Modal Kas (Uang Masuk)',
                         'Pengeluaran Kas' => 'Pengeluaran Kas',
                     ]),
             ])

@@ -25,8 +25,14 @@ class CashTransactionsTable
                 TextColumn::make('type')
                     ->label('Jenis')
                     ->badge()
-                    ->color(fn ($state) => match($state) {
-                        'DEPOSIT' => 'success',
+                    ->formatStateUsing(function ($state, $record) {
+                        if ($state === 'DEPOSIT') {
+                            return str_contains(strtolower($record->description ?? ''), 'modal') ? 'Modal Masuk' : 'Setor Kas (Keluar)';
+                        }
+                        return 'Pengeluaran';
+                    })
+                    ->color(fn ($state, $record) => match($state) {
+                        'DEPOSIT' => str_contains(strtolower($record->description ?? ''), 'modal') ? 'success' : 'warning',
                         'EXPENSE' => 'danger',
                         default => 'gray',
                     }),
@@ -34,7 +40,7 @@ class CashTransactionsTable
                 TextColumn::make('amount')
                     ->label('Jumlah')
                     ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))
-                    ->color(fn ($record) => $record->type === 'DEPOSIT' ? 'success' : 'danger')
+                    ->color(fn ($record) => ($record->type === 'DEPOSIT' && str_contains(strtolower($record->description ?? ''), 'modal')) ? 'success' : 'danger')
                     ->weight('bold')
                     ->sortable(),
 
