@@ -24,36 +24,44 @@ class DailyFinancialSummaryWidget extends BaseWidget
     protected function getStats(): array
     {
         $filter = $this->tableFilters['date'] ?? null;
-        $jenis = $filter['jenis_periode'] ?? 'Bulan';
+        $dariTanggal = $filter['dari_tanggal'] ?? null;
+        $sampaiTanggal = $filter['sampai_tanggal'] ?? null;
 
         $incomeQuery = DailyPaymentReport::query();
         $expenseTxQuery = CashTransaction::where('type', 'EXPENSE');
         $purchaseQuery = CashierPurchase::query();
 
-        if ($jenis === 'Tahun' && !empty($filter['tahun'])) {
+        if (!empty($dariTanggal) || !empty($sampaiTanggal)) {
+            if (!empty($dariTanggal)) {
+                $incomeQuery->whereDate('date', '>=', $dariTanggal);
+                $expenseTxQuery->whereDate('created_at', '>=', $dariTanggal);
+                $purchaseQuery->whereDate('created_at', '>=', $dariTanggal);
+            }
+            if (!empty($sampaiTanggal)) {
+                $incomeQuery->whereDate('date', '<=', $sampaiTanggal);
+                $expenseTxQuery->whereDate('created_at', '<=', $sampaiTanggal);
+                $purchaseQuery->whereDate('created_at', '<=', $sampaiTanggal);
+            }
+
+            if (!empty($dariTanggal) && !empty($sampaiTanggal)) {
+                $periodLabel = \Carbon\Carbon::parse($dariTanggal)->format('d/m/Y') . ' - ' . \Carbon\Carbon::parse($sampaiTanggal)->format('d/m/Y');
+            } elseif (!empty($dariTanggal)) {
+                $periodLabel = 'Mulai ' . \Carbon\Carbon::parse($dariTanggal)->format('d/m/Y');
+            } else {
+                $periodLabel = 'Sampai ' . \Carbon\Carbon::parse($sampaiTanggal)->format('d/m/Y');
+            }
+        } elseif (($filter['jenis_periode'] ?? '') === 'Tahun' && !empty($filter['tahun'])) {
             $incomeQuery->whereYear('date', $filter['tahun']);
             $expenseTxQuery->whereYear('created_at', $filter['tahun']);
             $purchaseQuery->whereYear('created_at', $filter['tahun']);
             $periodLabel = 'Tahun ' . $filter['tahun'];
-        } elseif ($jenis === 'Bulan' && !empty($filter['bulan'])) {
+        } elseif (($filter['jenis_periode'] ?? '') === 'Bulan' && !empty($filter['bulan'])) {
             $month = substr($filter['bulan'], 5, 2);
             $year = substr($filter['bulan'], 0, 4);
             $incomeQuery->whereMonth('date', $month)->whereYear('date', $year);
             $expenseTxQuery->whereMonth('created_at', $month)->whereYear('created_at', $year);
             $purchaseQuery->whereMonth('created_at', $month)->whereYear('created_at', $year);
             $periodLabel = date('M Y', strtotime($filter['bulan'] . '-01'));
-        } elseif ($jenis === 'Tanggal') {
-            if (!empty($filter['dari_tanggal'])) {
-                $incomeQuery->whereDate('date', '>=', $filter['dari_tanggal']);
-                $expenseTxQuery->whereDate('created_at', '>=', $filter['dari_tanggal']);
-                $purchaseQuery->whereDate('created_at', '>=', $filter['dari_tanggal']);
-            }
-            if (!empty($filter['sampai_tanggal'])) {
-                $incomeQuery->whereDate('date', '<=', $filter['sampai_tanggal']);
-                $expenseTxQuery->whereDate('created_at', '<=', $filter['sampai_tanggal']);
-                $purchaseQuery->whereDate('created_at', '<=', $filter['sampai_tanggal']);
-            }
-            $periodLabel = 'Rentang Tanggal';
         } else {
             // Default: bulan ini
             $incomeQuery->whereMonth('date', now()->month)->whereYear('date', now()->year);

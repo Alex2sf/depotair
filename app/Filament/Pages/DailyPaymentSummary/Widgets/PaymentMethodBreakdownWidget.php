@@ -22,23 +22,24 @@ class PaymentMethodBreakdownWidget extends BaseWidget
     protected function getStats(): array
     {
         $filter = $this->tableFilters['date'] ?? null;
-        $jenis = $filter['jenis_periode'] ?? 'Bulan';
+        $dariTanggal = $filter['dari_tanggal'] ?? null;
+        $sampaiTanggal = $filter['sampai_tanggal'] ?? null;
 
         $query = DailyPaymentReport::query();
 
-        if ($jenis === 'Tahun' && !empty($filter['tahun'])) {
+        if (!empty($dariTanggal) || !empty($sampaiTanggal)) {
+            if (!empty($dariTanggal)) {
+                $query->whereDate('date', '>=', $dariTanggal);
+            }
+            if (!empty($sampaiTanggal)) {
+                $query->whereDate('date', '<=', $sampaiTanggal);
+            }
+        } elseif (($filter['jenis_periode'] ?? '') === 'Tahun' && !empty($filter['tahun'])) {
             $query->whereYear('date', $filter['tahun']);
-        } elseif ($jenis === 'Bulan' && !empty($filter['bulan'])) {
+        } elseif (($filter['jenis_periode'] ?? '') === 'Bulan' && !empty($filter['bulan'])) {
             $month = substr($filter['bulan'], 5, 2);
             $year = substr($filter['bulan'], 0, 4);
             $query->whereMonth('date', $month)->whereYear('date', $year);
-        } elseif ($jenis === 'Tanggal') {
-            if (!empty($filter['dari_tanggal'])) {
-                $query->whereDate('date', '>=', $filter['dari_tanggal']);
-            }
-            if (!empty($filter['sampai_tanggal'])) {
-                $query->whereDate('date', '<=', $filter['sampai_tanggal']);
-            }
         } else {
             $query->whereMonth('date', now()->month)->whereYear('date', now()->year);
         }

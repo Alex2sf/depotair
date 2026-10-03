@@ -22,26 +22,34 @@ class GeneralJournalStatsOverview extends BaseWidget
     protected function getStats(): array
     {
         $filter = $this->tableFilters['transaction_date'] ?? null;
-        $jenis = $filter['jenis_periode'] ?? 'Bulan';
+        $dariTanggal = $filter['dari_tanggal'] ?? null;
+        $sampaiTanggal = $filter['sampai_tanggal'] ?? null;
 
         $query = GeneralJournal::query();
 
-        if ($jenis === 'Tahun' && !empty($filter['tahun'])) {
+        if (!empty($dariTanggal) || !empty($sampaiTanggal)) {
+            if (!empty($dariTanggal)) {
+                $query->whereDate('transaction_date', '>=', $dariTanggal);
+            }
+            if (!empty($sampaiTanggal)) {
+                $query->whereDate('transaction_date', '<=', $sampaiTanggal);
+            }
+
+            if (!empty($dariTanggal) && !empty($sampaiTanggal)) {
+                $periodLabel = \Carbon\Carbon::parse($dariTanggal)->format('d/m/Y') . ' - ' . \Carbon\Carbon::parse($sampaiTanggal)->format('d/m/Y');
+            } elseif (!empty($dariTanggal)) {
+                $periodLabel = 'Mulai ' . \Carbon\Carbon::parse($dariTanggal)->format('d/m/Y');
+            } else {
+                $periodLabel = 'Sampai ' . \Carbon\Carbon::parse($sampaiTanggal)->format('d/m/Y');
+            }
+        } elseif (($filter['jenis_periode'] ?? '') === 'Tahun' && !empty($filter['tahun'])) {
             $query->whereYear('transaction_date', $filter['tahun']);
             $periodLabel = 'Tahun ' . $filter['tahun'];
-        } elseif ($jenis === 'Bulan' && !empty($filter['bulan'])) {
+        } elseif (($filter['jenis_periode'] ?? '') === 'Bulan' && !empty($filter['bulan'])) {
             $month = substr($filter['bulan'], 5, 2);
             $year = substr($filter['bulan'], 0, 4);
             $query->whereMonth('transaction_date', $month)->whereYear('transaction_date', $year);
             $periodLabel = date('M Y', strtotime($filter['bulan'] . '-01'));
-        } elseif ($jenis === 'Tanggal') {
-            if (!empty($filter['dari_tanggal'])) {
-                $query->whereDate('transaction_date', '>=', $filter['dari_tanggal']);
-            }
-            if (!empty($filter['sampai_tanggal'])) {
-                $query->whereDate('transaction_date', '<=', $filter['sampai_tanggal']);
-            }
-            $periodLabel = 'Rentang Tanggal';
         } else {
             // Default: bulan ini
             $query->whereMonth('transaction_date', now()->month)->whereYear('transaction_date', now()->year);
