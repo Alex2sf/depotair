@@ -95,9 +95,8 @@ class DailyPaymentSummary extends Page implements HasTable
                 ->label('Export CSV')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->action(function () {
-                     $query = \App\Models\DailyPaymentReport::query()
-                        ->orderByDesc('date')
-                        ->get();
+                     $query = $this->getFilteredSortedTableQuery()?->get()
+                         ?? \App\Models\DailyPaymentReport::query()->orderByDesc('date')->get();
 
                      $csv = "Tanggal,Tunai,QRIS,Transfer,Corporate,Total Selesai,Pending/Diantar\n";
                      foreach($query as $row) {

@@ -169,9 +169,8 @@ class GeneralJournal extends Page implements HasTable
                     ->label('Export CSV')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->action(function () {
-                        $query = GeneralJournalModel::query()
-                            ->orderByDesc('transaction_date')
-                            ->get();
+                        $query = $this->getFilteredSortedTableQuery()?->get()
+                            ?? GeneralJournalModel::query()->orderByDesc('transaction_date')->get();
 
                         $csv = "Tanggal,No Referensi,Kategori,Keterangan,Metode,Masuk,Keluar\n";
                         foreach ($query as $row) {
