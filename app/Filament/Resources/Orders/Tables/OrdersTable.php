@@ -114,6 +114,14 @@ class OrdersTable
                 EditAction::make(),
             ])
             ->headerActions([
+                \Filament\Actions\Action::make('blast_incomplete')
+                    ->label('🚀 Blast Belum Selesai')
+                    ->icon('heroicon-o-megaphone')
+                    ->color('warning')
+                    ->visible(fn () => auth()->user()?->isOwner() || auth()->user()?->hasRole('owner') || auth()->user()?->hasRole('super_admin') || auth()->user()?->isAdmin() || auth()->user()?->hasRole('admin'))
+                    ->url(fn () => route('owner.dashboard'))
+                    ->openUrlInNewTab(),
+
                 \pxlrbt\FilamentExcel\Actions\Tables\ExportAction::make()->exports([
                     \pxlrbt\FilamentExcel\Exports\ExcelExport::make()->fromTable()->withFilename('Orders-' . date('Y-m-d')),
                 ]),

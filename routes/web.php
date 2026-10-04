@@ -17,6 +17,10 @@ Route::prefix('owner')->name('owner.')->group(function () {
         // BARIS INI WAJIB ADA AGAR STATUS BISA DIUBAH!
         Route::post('/order/{order}/status', [OwnerController::class, 'updateStatus'])
             ->name('order.updateStatus');
+
+        // FITUR BLAST PESANAN BELUM SELESAI
+        Route::get('/incomplete-orders', [OwnerController::class, 'getIncompleteOrders'])->name('incompleteOrders');
+        Route::post('/blast-orders', [OwnerController::class, 'blastOrders'])->name('blastOrders');
     });
 });
 Route::get('/', [CustomerOrderController::class, 'home'])->name('customer.home');
