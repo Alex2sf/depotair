@@ -95,7 +95,7 @@ class DailyFinancialSummaryWidget extends BaseWidget
                 ->color('danger'),
 
             Stat::make('Arus Kas Bersih (Laba)', 'Rp ' . number_format($kasBersih, 0, ',', '.'))
-                ->description($kasBersih >= 0 ? 'Surplus (Pemasukan > Pengeluaran)' : 'Defisit (Pengeluaran > Pemasukan)')
+                ->description($kasBersih >= 0 ? 'Laba operasional ' . $periodLabel . ' (Bukan saldo laci)' : 'Defisit operasional ' . $periodLabel . ' (Bukan saldo laci)')
                 ->descriptionIcon('heroicon-m-banknotes')
                 ->color($kasBersih >= 0 ? 'primary' : 'danger'),
         ];

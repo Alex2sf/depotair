@@ -16,14 +16,18 @@ class CashBalancesTable
         return $table
             ->columns([
                 TextColumn::make('type')
-                    ->label('Jenis')
+                    ->label('Akun Kas')
                     ->badge()
                     ->color(fn ($state) => $state === 'CASHIER' ? 'warning' : 'success')
-                    ->formatStateUsing(fn ($state) => $state === 'CASHIER' ? 'Kasir' : 'Owner')
+                    ->formatStateUsing(fn ($state) => match ($state) {
+                        'CASHIER' => 'Kas Kasir (Uang Laci)',
+                        'MAIN'    => 'Kas Besar (Owner / Utama)',
+                        default   => $state,
+                    })
                     ->summarize(\Filament\Tables\Columns\Summarizers\Count::make()->label('Total Saldo')),
 
                 TextColumn::make('balance')
-                    ->label('Saldo')
+                    ->label('Saldo Riil')
                     ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))
                     ->color('primary')
                     ->weight('bold')
@@ -42,10 +46,10 @@ class CashBalancesTable
             ])
             ->filters([
                 \Filament\Tables\Filters\SelectFilter::make('type')
-                    ->label('Jenis Saldo')
+                    ->label('Akun Kas')
                     ->options([
-                        'CASHIER' => 'Kasir',
-                        'MAIN'    => 'Owner',
+                        'CASHIER' => 'Kas Kasir (Uang Laci)',
+                        'MAIN'    => 'Kas Besar (Owner / Utama)',
                     ]),
             ])
             ->recordActions([

@@ -51,9 +51,11 @@ class OwnerDashboardController extends Controller
                 'corporate'=> (int) ($pemasukan['CORPORATE'] ?? 0),
                 'total'    => (int) $pemasukan->sum(),
             ],
-            'kas_kasir' => (int) $kasKasir,
-            'kas_besar' => (int) $kasBesar,
-            'total_kas' => (int) ($kasKasir + $kasBesar),
+            'kas_kasir'               => (int) $kasKasir,
+            'kas_besar'               => (int) $kasBesar,
+            'current_drawer_balance'  => (int) $kasKasir,
+            'current_owner_balance'   => (int) $kasBesar,
+            'total_kas'               => (int) ($kasKasir + $kasBesar),
         ]);
     }
 

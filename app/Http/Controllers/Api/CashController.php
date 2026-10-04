@@ -182,9 +182,11 @@ class CashController extends Controller
 
         return response()->json([
             'success' => true,
-            'kas_kasir' => (int) $cashier,
-            'kas_besar' => (int) $main,
-            'total_kas' => $cashier + $main,
+            'kas_kasir'               => (int) $cashier,
+            'kas_besar'               => (int) $main,
+            'current_drawer_balance'  => (int) $cashier,
+            'current_owner_balance'   => (int) $main,
+            'total_kas'               => (int) ($cashier + $main),
             'riwayat'   => $todayTransactions->map(fn($t) => [
                 'waktu'       => $t->created_at->format('H:i'),
                 'tipe'        => $t->type === 'DEPOSIT' ? 'Masuk' : 'Keluar',
