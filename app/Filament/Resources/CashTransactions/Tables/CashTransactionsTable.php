@@ -6,6 +6,7 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -56,6 +57,14 @@ class CashTransactionsTable
                     ->label('Atas Nama')
                     ->placeholder('-')
                     ->sortable(),
+
+                ImageColumn::make('proof_image')
+                    ->label('Bukti Setor')
+                    ->disk('public')
+                    ->circular()
+                    ->defaultImageUrl(null)
+                    ->url(fn ($record) => $record->proof_image_url)
+                    ->openUrlInNewTab(),
             ])
             ->filters([
                 \Filament\Tables\Filters\SelectFilter::make('type')

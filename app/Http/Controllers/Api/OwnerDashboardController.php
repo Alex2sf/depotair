@@ -81,23 +81,28 @@ class OwnerDashboardController extends Controller
             ->select('created_at', 'total_amount', 'payment_type', 'order_number')
             ->get()
             ->map(fn($o) => [
-                'waktu'       => $o->created_at,
-                'tipe'        => 'Pemasukan',
-                'jumlah'      => (int) $o->total_amount,
-                'keterangan'  => "Order #{$o->order_number}",
-                'kategori'    => is_object($o->payment_type) ? $o->payment_type->value : $o->payment_type,
-                'oleh'        => '-',
+                'waktu'           => $o->created_at,
+                'tipe'            => 'Pemasukan',
+                'jumlah'          => (int) $o->total_amount,
+                'keterangan'      => "Order #{$o->order_number}",
+                'kategori'        => is_object($o->payment_type) ? $o->payment_type->value : $o->payment_type,
+                'oleh'            => '-',
+                'atas_nama'       => '-',
+                'proof_image_url' => null,
             ]);
 
-        $cashTrans = CashTransaction::whereBetween('created_at', [$start, $end])
+        $cashTrans = CashTransaction::with(['recordedBy:id,name', 'onBehalfOf:id,name'])
+            ->whereBetween('created_at', [$start, $end])
             ->get()
             ->map(fn($t) => [
-                'waktu'       => $t->created_at,
-                'tipe'        => $t->type === 'DEPOSIT' ? 'Pemasukan' : 'Pengeluaran',
-                'jumlah'      => (int) $t->amount,
-                'keterangan'  => $t->description,
-                'kategori'    => $t->type === 'DEPOSIT' ? 'Deposit' : 'Expense',
-                'oleh'        => $t->recordedBy?->name ?? 'Sistem',
+                'waktu'           => $t->created_at,
+                'tipe'            => $t->type === 'DEPOSIT' ? 'Pemasukan' : 'Pengeluaran',
+                'jumlah'          => (int) $t->amount,
+                'keterangan'      => $t->description,
+                'kategori'        => $t->type === 'DEPOSIT' ? 'Deposit' : 'Expense',
+                'oleh'            => $t->recordedBy?->name ?? 'Sistem',
+                'atas_nama'       => $t->onBehalfOf?->name ?? '-',
+                'proof_image_url' => $t->proof_image_url,
             ]);
 
         $semua = $orderTrans->merge($cashTrans)
@@ -117,13 +122,15 @@ class OwnerDashboardController extends Controller
             ],
             'total_transaksi' => $total,
             'data' => $paginated->map(fn($item) => [
-                'waktu'      => $item['waktu']->format('d/m/Y H:i'),
-                'tipe'       => $item['tipe'],
-                'jumlah'     => $item['jumlah'],
-                'keterangan' => $item['keterangan'],
-                'kategori'   => $item['kategori'],
-                'oleh'       => $item['oleh'],
-            ]),
+                'waktu'           => $item['waktu']->format('d/m/Y H:i'),
+                'tipe'            => $item['tipe'],
+                'jumlah'          => $item['jumlah'],
+                'keterangan'      => $item['keterangan'],
+                'kategori'        => $item['kategori'],
+                'oleh'            => $item['oleh'],
+                'atas_nama'       => $item['atas_nama'] ?? '-',
+                'proof_image_url' => $item['proof_image_url'] ?? null,
+            ])->values()->all(),
             'pagination' => [
                 'current_page' => (int) $page,
                 'per_page'     => $perPage,

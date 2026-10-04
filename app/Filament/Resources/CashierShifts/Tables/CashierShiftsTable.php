@@ -62,6 +62,12 @@ class CashierShiftsTable
                     ->color('danger')
                     ->sortable(),
 
+                TextColumn::make('cash_deposited')
+                    ->label('Setor Kas')
+                    ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state ?? 0, 0, ',', '.'))
+                    ->color('warning')
+                    ->sortable(),
+
                 TextColumn::make('expected_cash')
                     ->label('Uang Seharusnya')
                     ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))

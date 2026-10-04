@@ -50,7 +50,7 @@ class CashierShiftInfolist
 
                 Section::make('Rekonsiliasi Kas Laci Kasir')
                     ->schema([
-                        Grid::make(3)->schema([
+                        Grid::make(4)->schema([
                             TextEntry::make('starting_cash')
                                 ->label('Uang di Laci (Awal)')
                                 ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))
@@ -68,6 +68,12 @@ class CashierShiftInfolist
                                 ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))
                                 ->size('lg')
                                 ->color('danger'),
+
+                            TextEntry::make('cash_deposited')
+                                ->label('Setor Kas Besar (-)')
+                                ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state ?? 0, 0, ',', '.'))
+                                ->size('lg')
+                                ->color('warning'),
                         ]),
 
                         Grid::make(3)->schema([

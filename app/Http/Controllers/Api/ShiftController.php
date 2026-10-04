@@ -238,7 +238,7 @@ class ShiftController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $shifts->map(fn($s) => [
+            'data'    => $shifts->getCollection()->map(fn($s) => [
                 'id'            => $s->id,
                 'cashier_name'  => $s->user?->name ?? 'Kasir',
                 'start_time'    => $s->start_time->format('d/m/Y H:i'),
@@ -252,7 +252,7 @@ class ShiftController extends Controller
                 'difference'    => (int) $s->difference,
                 'status'        => $s->status,
                 'notes'         => $s->notes,
-            ]),
+            ])->values()->all(),
             'pagination' => [
                 'current_page' => $shifts->currentPage(),
                 'last_page'    => $shifts->lastPage(),
@@ -268,18 +268,24 @@ class ShiftController extends Controller
     {
         $query = \App\Models\CashTransaction::with(['recordedBy:id,name', 'onBehalfOf:id,name'])
             ->where('type', 'DEPOSIT')
-            ->where('description', 'like', '%Setor ke kas besar%')
+            ->where(function ($q) {
+                $q->where('description', 'like', '%setor%')
+                  ->orWhere('description', 'like', '%deposit%')
+                  ->orWhereNotNull('proof_image')
+                  ->orWhereNotNull('on_behalf_of');
+            })
+            ->where('description', 'not like', '%modal awal%')
             ->orderByDesc('created_at');
 
         if ($request->date) {
             $query->whereDate('created_at', $request->date);
         }
 
-        $deposits = $query->paginate(20);
+        $deposits = $query->paginate(50);
 
         return response()->json([
             'success' => true,
-            'data'    => $deposits->map(fn($t) => [
+            'data'    => $deposits->getCollection()->map(fn($t) => [
                 'id'               => $t->id,
                 'amount'           => (int) $t->amount,
                 'description'      => $t->description,
@@ -287,7 +293,7 @@ class ShiftController extends Controller
                 'recorded_by_name' => $t->recordedBy?->name ?? 'Sistem',
                 'on_behalf_of_name'=> $t->onBehalfOf?->name ?? $t->recordedBy?->name ?? 'Kasir',
                 'date'             => $t->created_at->format('d/m/Y H:i'),
-            ]),
+            ])->values()->all(),
             'pagination' => [
                 'current_page' => $deposits->currentPage(),
                 'last_page'    => $deposits->lastPage(),

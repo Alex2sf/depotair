@@ -23,11 +23,36 @@ class CashTransaction extends Model
         'amount' => 'integer',
     ];
 
+    protected $appends = [
+        'proof_image_url',
+    ];
+
     public function getProofImageUrlAttribute(): ?string
     {
         if (!$this->proof_image) return null;
         if (filter_var($this->proof_image, FILTER_VALIDATE_URL)) return $this->proof_image;
-        return asset('storage/' . $this->proof_image);
+
+        $path = ltrim($this->proof_image, '/');
+
+        // 1. Cek langsung di direktori public/ (jika upload fallback langsung ke public)
+        if (file_exists(public_path($path))) {
+            return asset($path);
+        }
+
+        // 2. Cek di direktori public/storage/ (jika symlink atau subfolder storage ada di public)
+        if (file_exists(public_path('storage/' . $path))) {
+            return asset('storage/' . $path);
+        }
+
+        // 3. Cek disk public via Storage facade
+        try {
+            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+                return \Illuminate\Support\Facades\Storage::disk('public')->url($path);
+            }
+        } catch (\Throwable $e) {}
+
+        // 4. Default asset storage
+        return asset('storage/' . $path);
     }
 
     const TYPE_EXPENSE = 'EXPENSE';

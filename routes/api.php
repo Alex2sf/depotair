@@ -15,8 +15,8 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 Route::get('/me', [AuthController::class, 'me'])->middleware('auth:sanctum');
 
-// ==================== FITUR KASIR (admin & kasir) ====================
-Route::middleware(['auth:sanctum', 'role:admin,kasir'])->group(function () {
+// ==================== FITUR KASIR (admin, kasir & owner) ====================
+Route::middleware(['auth:sanctum', 'role:admin,kasir,owner,super_admin'])->group(function () {
     Route::get('/products', [ProductController::class, 'index']);
     Route::post('/products', [ProductController::class, 'store']); // Tambah Produk Baru
     Route::post('/customers/search-or-create', [CustomerController::class, 'searchOrCreate']);
