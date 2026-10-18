@@ -43,6 +43,12 @@ class OwnerDashboardController extends Controller
         $kasKasir = CashBalance::where('type', 'CASHIER')->first()->balance ?? 0;
         $kasBesar = CashBalance::where('type', 'MAIN')->first()->balance ?? 0;
 
+        // Hitung pesanan menggantung yang lebih dari 3 hari lalu
+        $cutoffOld = Carbon::now()->subDays(3)->startOfDay();
+        $oldIncompleteOrders = Order::where('created_at', '<', $cutoffOld)
+            ->whereNotIn('status', ['COMPLETE', 'CANCELLED'])
+            ->get();
+
         return response()->json([
             'success' => true,
             'periode' => ['start' => $start->format('Y-m-d'), 'end' => $end->format('Y-m-d')],
@@ -50,6 +56,8 @@ class OwnerDashboardController extends Controller
             'total_order'   => $orders->count(),
             'pending_omzet' => (int) $pendingOrders->sum('total_amount'),
             'pending_order' => $pendingOrders->count(),
+            'old_incomplete_count'  => $oldIncompleteOrders->count(),
+            'old_incomplete_amount' => (int) $oldIncompleteOrders->sum('total_amount'),
             'pemasukan' => [
                 'tunai'    => (int) ($pemasukan['TUNAI'] ?? 0),
                 'qris'     => (int) ($pemasukan['QRIS'] ?? 0),
@@ -62,6 +70,51 @@ class OwnerDashboardController extends Controller
             'current_drawer_balance'  => (int) $kasKasir,
             'current_owner_balance'   => (int) $kasBesar,
             'total_kas'               => (int) ($kasKasir + $kasBesar),
+        ]);
+    }
+
+    // 1.5 BULK COMPLETE PESANAN LAMA (> 3 HARI LALU)
+    public function bulkCompleteOldOrders(Request $request)
+    {
+        $user = $request->user();
+        if (!in_array($user->role, ['owner', 'admin'])) {
+            return response()->json(['success' => false, 'message' => 'Akses ditolak'], 403);
+        }
+
+        $days = (int) ($request->days ?? 3);
+        $cutoff = Carbon::now()->subDays($days)->startOfDay();
+
+        $orders = Order::where('created_at', '<', $cutoff)
+            ->whereNotIn('status', ['COMPLETE', 'CANCELLED'])
+            ->get();
+
+        $count = $orders->count();
+        if ($count === 0) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Tidak ada pesanan menggantung yang lebih dari ' . $days . ' hari lalu.',
+                'completed_count' => 0,
+                'completed_amount' => 0,
+            ]);
+        }
+
+        $totalAmount = (int) $orders->sum('total_amount');
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($orders) {
+            $now = Carbon::now();
+            foreach ($orders as $order) {
+                $order->update([
+                    'status'         => 'COMPLETE',
+                    'completed_time' => $now,
+                ]);
+            }
+        });
+
+        return response()->json([
+            'success'          => true,
+            'message'          => "Berhasil menyelesaikan {$count} pesanan lama (> {$days} hari lalu)!",
+            'completed_count'  => $count,
+            'completed_amount' => $totalAmount,
         ]);
     }
 

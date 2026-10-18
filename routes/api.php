@@ -79,10 +79,9 @@ Route::middleware(['auth:sanctum', 'role:admin,kurir'])->group(function () {
 // Di routes/api.php — TAMBAHIN INI DI BAWAH
 Route::middleware(['auth:sanctum', 'role:owner,admin'])->group(function () {
     Route::get('/owner/dashboard', [OwnerDashboardController::class, 'index']);
-    Route::get('/owner/transactions', [OwnerDashboardController::class, 'transactions'])
-    ; // RIWAYAT LENGKAP
+    Route::get('/owner/transactions', [OwnerDashboardController::class, 'transactions']); // RIWAYAT LENGKAP
     Route::get('/owner/inventory', [OwnerDashboardController::class, 'inventory']); // BARU!
-
+    Route::post('/owner/bulk-complete-old-orders', [OwnerDashboardController::class, 'bulkCompleteOldOrders']); // BULK COMPLETE PESANAN LAMA > 3 HARI
 });
 
 
