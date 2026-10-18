@@ -27,7 +27,10 @@ class DailyFinancialSummaryWidget extends BaseWidget
         $jenis = $filter['jenis_filter'] ?? null;
 
         $incomeQuery = DailyPaymentReport::query();
-        $expenseTxQuery = CashTransaction::where('type', 'EXPENSE');
+        $expenseTxQuery = CashTransaction::where('type', 'EXPENSE')
+            ->whereNull('order_id')
+            ->where('description', 'not like', 'Belanja Stok:%')
+            ->where('description', 'not like', 'Operasional:%');
         $purchaseQuery = CashierPurchase::query();
 
         if ($jenis === 'rentang' && !empty($filter['rentang_tanggal'])) {

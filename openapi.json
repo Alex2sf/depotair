@@ -1,0 +1,252 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "HydroExpert Laravel API",
+    "version": "1.0.0",
+    "description": "OpenAPI contract for HydroExpert Laravel Backend API"
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8000"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "paths": {
+    "/api/test-checkout-code": {
+      "get": {
+        "operationId": "healthCheck",
+        "summary": "Public API status check",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/me": {
+      "get": {
+        "operationId": "getCurrentUserProfile",
+        "summary": "Get authenticated user profile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user profile"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          }
+        }
+      }
+    },
+    "/api/products": {
+      "get": {
+        "operationId": "listProducts",
+        "summary": "List active products with inventory",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Products list"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          }
+        }
+      }
+    },
+    "/api/orders/history": {
+      "get": {
+        "operationId": "listOrderHistory",
+        "summary": "List order history",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order history"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          }
+        }
+      }
+    },
+    "/api/inventory/opname-list": {
+      "get": {
+        "operationId": "listInventoryForOpname",
+        "summary": "List inventory items for stock opname",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inventory opname list"
+          }
+        }
+      }
+    },
+    "/api/cash/dashboard": {
+      "get": {
+        "operationId": "getCashDashboard",
+        "summary": "Get cash drawer and main ledger dashboard",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cash dashboard"
+          }
+        }
+      }
+    },
+    "/api/kasir/list": {
+      "get": {
+        "operationId": "listCashiers",
+        "summary": "List cashier users",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cashier list"
+          }
+        }
+      }
+    },
+    "/api/shifts/current": {
+      "get": {
+        "operationId": "getCurrentShift",
+        "summary": "Get or open active cashier shift",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current shift"
+          }
+        }
+      }
+    },
+    "/api/shifts/history": {
+      "get": {
+        "operationId": "getShiftHistory",
+        "summary": "Get shift history",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shift history"
+          }
+        }
+      }
+    },
+    "/api/shifts/deposits": {
+      "get": {
+        "operationId": "getShiftDeposits",
+        "summary": "Get shift deposit history",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deposit history"
+          }
+        }
+      }
+    },
+    "/api/purchases/history": {
+      "get": {
+        "operationId": "getPurchaseHistory",
+        "summary": "Get cashier purchase history",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Purchase history"
+          }
+        }
+      }
+    },
+    "/api/courier/orders": {
+      "get": {
+        "operationId": "getCourierOrders",
+        "summary": "Get courier orders",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Courier orders"
+          }
+        }
+      }
+    },
+    "/api/owner/dashboard": {
+      "get": {
+        "operationId": "getOwnerDashboard",
+        "summary": "Get owner financial dashboard",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Owner dashboard"
+          }
+        }
+      }
+    },
+    "/api/owner/inventory": {
+      "get": {
+        "operationId": "getOwnerInventory",
+        "summary": "Get owner inventory overview",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Owner inventory"
+          }
+        }
+      }
+    }
+  }
+}

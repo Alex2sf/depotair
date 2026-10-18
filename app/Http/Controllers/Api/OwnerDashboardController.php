@@ -30,7 +30,11 @@ class OwnerDashboardController extends Controller
         $end   = $request->end_date   ? Carbon::parse($request->end_date)->endOfDay()     : Carbon::today()->endOfDay();
 
         $orders = Order::whereBetween('created_at', [$start, $end])
-            ->whereIn('status', ['COMPLETE', 'ON_DELIVERY'])
+            ->where('status', 'COMPLETE')
+            ->get();
+
+        $pendingOrders = Order::whereBetween('created_at', [$start, $end])
+            ->whereIn('status', ['READY', 'ON_DELIVERY'])
             ->get();
 
         $pemasukan = $orders->groupBy(fn($o) => is_object($o->payment_type) ? $o->payment_type->value : $o->payment_type)
@@ -42,8 +46,10 @@ class OwnerDashboardController extends Controller
         return response()->json([
             'success' => true,
             'periode' => ['start' => $start->format('Y-m-d'), 'end' => $end->format('Y-m-d')],
-            'omzet'   => (int) $orders->sum('total_amount'),
-            'total_order' => $orders->count(),
+            'omzet'         => (int) $orders->sum('total_amount'),
+            'total_order'   => $orders->count(),
+            'pending_omzet' => (int) $pendingOrders->sum('total_amount'),
+            'pending_order' => $pendingOrders->count(),
             'pemasukan' => [
                 'tunai'    => (int) ($pemasukan['TUNAI'] ?? 0),
                 'qris'     => (int) ($pemasukan['QRIS'] ?? 0),
@@ -77,7 +83,7 @@ class OwnerDashboardController extends Controller
         $end   = Carbon::parse($request->end_date)->endOfDay();
 
         $orderTrans = Order::whereBetween('created_at', [$start, $end])
-            ->whereIn('status', ['COMPLETE', 'ON_DELIVERY'])
+            ->where('status', 'COMPLETE')
             ->select('created_at', 'total_amount', 'payment_type', 'order_number')
             ->get()
             ->map(fn($o) => [
@@ -92,18 +98,23 @@ class OwnerDashboardController extends Controller
             ]);
 
         $cashTrans = CashTransaction::with(['recordedBy:id,name', 'onBehalfOf:id,name'])
+            ->whereNull('order_id')
             ->whereBetween('created_at', [$start, $end])
             ->get()
-            ->map(fn($t) => [
-                'waktu'           => $t->created_at,
-                'tipe'            => $t->type === 'DEPOSIT' ? 'Pemasukan' : 'Pengeluaran',
-                'jumlah'          => (int) $t->amount,
-                'keterangan'      => $t->description,
-                'kategori'        => $t->type === 'DEPOSIT' ? 'Deposit' : 'Expense',
-                'oleh'            => $t->recordedBy?->name ?? 'Sistem',
-                'atas_nama'       => $t->onBehalfOf?->name ?? '-',
-                'proof_image_url' => $t->proof_image_url,
-            ]);
+            ->map(function ($t) {
+                $isSetor = $t->type === 'DEPOSIT' && str_contains(strtolower((string) $t->description), 'setor');
+
+                return [
+                    'waktu'           => $t->created_at,
+                    'tipe'            => $isSetor ? 'Setor Kas' : ($t->type === 'DEPOSIT' ? 'Pemasukan' : 'Pengeluaran'),
+                    'jumlah'          => (int) $t->amount,
+                    'keterangan'      => $t->description,
+                    'kategori'        => $isSetor ? 'Setor Kas' : ($t->type === 'DEPOSIT' ? 'Deposit' : 'Expense'),
+                    'oleh'            => $t->recordedBy?->name ?? 'Sistem',
+                    'atas_nama'       => $t->onBehalfOf?->name ?? '-',
+                    'proof_image_url' => $t->proof_image_url,
+                ];
+            });
 
         $semua = $orderTrans->merge($cashTrans)
             ->sortByDesc('waktu')

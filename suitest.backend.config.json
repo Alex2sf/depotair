@@ -1,0 +1,31 @@
+{
+  "mode": "backend",
+  "projectName": "HydroExpert Laravel",
+  "projectPath": ".",
+  "baseUrl": "http://127.0.0.1:8000",
+  "apiBasePath": "/api",
+  "readyPath": "/api/test-checkout-code",
+  "analysisSource": "openapi",
+  "openapiFile": "openapi.json",
+  "auth": {
+    "type": "bearer",
+    "loginPath": "/api/login",
+    "username": "admin@gmail.com",
+    "password": "admin",
+    "tokenField": "token",
+    "usernameField": "email",
+    "passwordField": "password"
+  },
+  "server": {
+    "autostart": false,
+    "startCommand": ""
+  },
+  "publish": {
+    "enabled": true,
+    "apiUrl": "http://localhost:4000",
+    "token": "sk_suitest_L5gW9m4DM0REF_H0loRF0L28A0nDoYUDz5FfEPPsy1g",
+    "suiteName": "Laravel Backend API",
+    "recreateProject": false,
+    "projectId": "n16b8858nt27gjgyxk13zgcf"
+  }
+}

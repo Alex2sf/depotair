@@ -1,0 +1,44 @@
+{
+  "mode": "frontend",
+  "projectName": "HydroExpert Laravel",
+  "projectPath": ".",
+  "baseUrl": "http://127.0.0.1:8000",
+  "analysisSource": "blackbox",
+  "server": {
+    "autostart": false,
+    "startCommand": ""
+  },
+  "ui": {
+    "mode": "blackbox",
+    "targetUrl": "http://127.0.0.1:8000",
+    "auth": {
+      "strategy": "form",
+      "loginUrl": "/admin/login",
+      "username": "admin@gmail.com",
+      "password": "admin"
+    },
+    "crawl": {
+      "maxDepth": 3,
+      "maxRoutes": 25,
+      "safeMode": true
+    },
+    "testGeneration": {
+      "includeSmoke": true,
+      "includeAuth": true,
+      "includeNavigation": true,
+      "includeForms": true,
+      "includeTables": true,
+      "allowMutation": false
+    },
+    "headed": false,
+    "recordVideo": true
+  },
+  "publish": {
+    "enabled": true,
+    "apiUrl": "http://localhost:4000",
+    "token": "sk_suitest_L5gW9m4DM0REF_H0loRF0L28A0nDoYUDz5FfEPPsy1g",
+    "suiteName": "Filament Admin Blackbox",
+    "recreateProject": true,
+    "projectId": "n16b8858nt27gjgyxk13zgcf"
+  }
+}

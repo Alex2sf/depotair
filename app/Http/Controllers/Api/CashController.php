@@ -156,14 +156,15 @@ class CashController extends Controller
         $cashier = CashBalance::where('type', 'CASHIER')->first()->balance;
         $main    = CashBalance::where('type', 'MAIN')->first()->balance;
 
-        $todayTransactions = CashTransaction::whereBetween('created_at', [$startDate, $endDate])
+        $todayTransactions = CashTransaction::with('recordedBy:id,name')
+            ->whereBetween('created_at', [$startDate, $endDate])
             ->orderByDesc('created_at')
             ->take(20)
             ->get();
 
-        // PEMASUKAN PER PAYMENT TYPE DARI ORDER (INI YANG KAMU MAU BRO!)
+        // PEMASUKAN PER PAYMENT TYPE DARI ORDER (HANYA STATUS COMPLETE AGAR KONSISTEN DENGAN FILAMENT)
         $pemasukanOrders = Order::whereBetween('created_at', [$startDate, $endDate])
-            ->whereIn('status', ['COMPLETE', 'ON_DELIVERY'])
+            ->where('status', 'COMPLETE')
             ->select([
                 'payment_type',
                 DB::raw('SUM(total_amount) as total_pemasukan')
@@ -172,6 +173,10 @@ class CashController extends Controller
             ->get()
             ->keyBy('payment_type')
             ->map(fn($item) => (int) $item->total_pemasukan);
+
+        $pendingTotal = (int) Order::whereBetween('created_at', [$startDate, $endDate])
+            ->whereIn('status', ['READY', 'ON_DELIVERY'])
+            ->sum('total_amount');
 
         $pemasukan = [
             'TUNAI'    => $pemasukanOrders['TUNAI'] ?? 0,
@@ -187,13 +192,18 @@ class CashController extends Controller
             'current_drawer_balance'  => (int) $cashier,
             'current_owner_balance'   => (int) $main,
             'total_kas'               => (int) ($cashier + $main),
-            'riwayat'   => $todayTransactions->map(fn($t) => [
-                'waktu'       => $t->created_at->format('H:i'),
-                'tipe'        => $t->type === 'DEPOSIT' ? 'Masuk' : 'Keluar',
-                'jumlah'      => (int) $t->amount,
-                'keterangan'  => $t->description,
-                'oleh'        => $t->recordedBy?->name ?? 'Sistem',
-            ]),
+            'pending_total'           => $pendingTotal,
+            'riwayat'   => $todayTransactions->map(function ($t) {
+                $isSetor = $t->type === 'DEPOSIT' && str_contains(strtolower((string) $t->description), 'setor');
+
+                return [
+                    'waktu'       => $t->created_at->format('H:i'),
+                    'tipe'        => $isSetor ? 'Setor Kas' : ($t->type === 'DEPOSIT' ? 'Masuk' : 'Keluar'),
+                    'jumlah'      => (int) $t->amount,
+                    'keterangan'  => $t->description,
+                    'oleh'        => $t->recordedBy?->name ?? 'Sistem',
+                ];
+            }),
             'pemasukan' => $pemasukan,  // INI YANG BARU!!! PEMASUKAN PER TYPE
             'range' => [
                 'start' => $startDate->format('Y-m-d'),

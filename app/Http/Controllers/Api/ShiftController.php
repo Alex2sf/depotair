@@ -47,15 +47,19 @@ class ShiftController extends Controller
         // Hitung akumulasi real-time selama shift ini berjalan
         $shiftStart = $activeShift->start_time;
 
-        // Total penjualan TUNAI order selesai / on delivery selama shift
+        // Total penjualan TUNAI selama shift (selama tidak CANCELLED karena uang tunai masuk laci saat checkout)
         $cashSales = (int) \App\Models\Order::where('created_at', '>=', $shiftStart)
-            ->whereIn('status', ['COMPLETE', 'ON_DELIVERY'])
+            ->where('status', '!=', 'CANCELLED')
             ->where('payment_type', 'TUNAI')
             ->sum('total_amount');
 
-        // Total pengeluaran kas laci selama shift
+        // Total pengeluaran kas laci selama shift (kecualikan void order dari shift yang sama agar tidak terpotong 2x)
         $cashExpenses = (int) \App\Models\CashTransaction::where('created_at', '>=', $shiftStart)
             ->where('type', 'EXPENSE')
+            ->where(function ($q) use ($shiftStart) {
+                $q->whereNull('order_id')
+                  ->orWhereHas('order', fn ($oq) => $oq->where('created_at', '<', $shiftStart));
+            })
             ->sum('amount');
 
         // Total setoran ke kas besar selama shift
@@ -154,67 +158,73 @@ class ShiftController extends Controller
         $endTime = now();
         $actualCash = (int) $request->actual_cash;
 
-        // Hitung final penjualan, pengeluaran & setoran
-        $cashSales = (int) \App\Models\Order::where('created_at', '>=', $shift->start_time)
-            ->where('created_at', '<=', $endTime)
-            ->whereIn('status', ['COMPLETE', 'ON_DELIVERY'])
-            ->where('payment_type', 'TUNAI')
-            ->sum('total_amount');
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($shift, $user, $endTime, $actualCash, $request) {
+            // Hitung final penjualan, pengeluaran & setoran
+            $cashSales = (int) \App\Models\Order::where('created_at', '>=', $shift->start_time)
+                ->where('created_at', '<=', $endTime)
+                ->where('status', '!=', 'CANCELLED')
+                ->where('payment_type', 'TUNAI')
+                ->sum('total_amount');
 
-        $cashExpenses = (int) \App\Models\CashTransaction::where('created_at', '>=', $shift->start_time)
-            ->where('created_at', '<=', $endTime)
-            ->where('type', 'EXPENSE')
-            ->sum('amount');
+            $cashExpenses = (int) \App\Models\CashTransaction::where('created_at', '>=', $shift->start_time)
+                ->where('created_at', '<=', $endTime)
+                ->where('type', 'EXPENSE')
+                ->where(function ($q) use ($shift) {
+                    $q->whereNull('order_id')
+                      ->orWhereHas('order', fn ($oq) => $oq->where('created_at', '<', $shift->start_time));
+                })
+                ->sum('amount');
 
-        $cashDeposited = (int) \App\Models\CashTransaction::where('created_at', '>=', $shift->start_time)
-            ->where('created_at', '<=', $endTime)
-            ->where('type', 'DEPOSIT')
-            ->where('description', 'like', '%Setor ke kas besar%')
-            ->sum('amount');
+            $cashDeposited = (int) \App\Models\CashTransaction::where('created_at', '>=', $shift->start_time)
+                ->where('created_at', '<=', $endTime)
+                ->where('type', 'DEPOSIT')
+                ->where('description', 'like', '%Setor ke kas besar%')
+                ->sum('amount');
 
-        $expectedCash = $shift->starting_cash + $cashSales - $cashExpenses - $cashDeposited;
-        $difference = $actualCash - $expectedCash;
+            $expectedCash = $shift->starting_cash + $cashSales - $cashExpenses - $cashDeposited;
+            $difference = $actualCash - $expectedCash;
 
-        // Tutup shift
-        $shift->update([
-            'end_time'       => $endTime,
-            'cash_sales'     => $cashSales,
-            'cash_expenses'  => $cashExpenses,
-            'cash_deposited' => $cashDeposited,
-            'expected_cash'  => $expectedCash,
-            'actual_cash'    => $actualCash,
-            'difference'     => $difference,
-            'notes'          => $request->notes,
-            'status'         => 'CLOSED',
-        ]);
-
-        // Sesuaikan saldo kas laci kasir di cash_balances agar mencerminkan uang fisik aktual yang ditinggal di laci
-        $cashierBalance = \App\Models\CashBalance::where('type', 'CASHIER')->first();
-        if ($cashierBalance) {
-            $cashierBalance->update([
-                'balance' => $actualCash,
-                'last_transaction_at' => $endTime,
+            // Tutup shift
+            $shift->update([
+                'end_time'       => $endTime,
+                'cash_sales'     => $cashSales,
+                'cash_expenses'  => $cashExpenses,
+                'cash_deposited' => $cashDeposited,
+                'expected_cash'  => $expectedCash,
+                'actual_cash'    => $actualCash,
+                'difference'     => $difference,
+                'notes'          => $request->notes,
+                'status'         => 'CLOSED',
             ]);
-        }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Shift berhasil ditutup! Data tersimpan di pembukuan.',
-            'data'    => [
-                'id'            => $shift->id,
-                'cashier_name'  => $user->name,
-                'start_time'    => $shift->start_time->format('d/m/Y H:i'),
-                'end_time'      => $shift->end_time->format('d/m/Y H:i'),
-                'starting_cash' => (int) $shift->starting_cash,
-                'cash_sales'    => (int) $cashSales,
-                'cash_expenses' => (int) $cashExpenses,
-                'cash_deposited'=> (int) $cashDeposited,
-                'expected_cash' => (int) $expectedCash,
-                'actual_cash'   => (int) $actualCash,
-                'difference'    => (int) $difference,
-                'notes'         => $shift->notes,
-            ],
-        ]);
+            // Sesuaikan saldo kas laci kasir di cash_balances agar mencerminkan uang fisik aktual yang ditinggal di laci
+            $cashierBalance = \App\Models\CashBalance::where('type', 'CASHIER')->first();
+            if ($cashierBalance) {
+                $cashierBalance->update([
+                    'balance' => $actualCash,
+                    'last_transaction_at' => $endTime,
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Shift berhasil ditutup! Data tersimpan di pembukuan.',
+                'data'    => [
+                    'id'            => $shift->id,
+                    'cashier_name'  => $user->name,
+                    'start_time'    => $shift->start_time->format('d/m/Y H:i'),
+                    'end_time'      => $shift->end_time->format('d/m/Y H:i'),
+                    'starting_cash' => (int) $shift->starting_cash,
+                    'cash_sales'    => (int) $cashSales,
+                    'cash_expenses' => (int) $cashExpenses,
+                    'cash_deposited'=> (int) $cashDeposited,
+                    'expected_cash' => (int) $expectedCash,
+                    'actual_cash'   => (int) $actualCash,
+                    'difference'    => (int) $difference,
+                    'notes'         => $shift->notes,
+                ],
+            ]);
+        });
     }
 
     /**

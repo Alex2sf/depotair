@@ -15,7 +15,7 @@ class AuthController extends Controller
         $request->validate([
             'email'       => 'required|email',
             'password'    => 'required|string',
-            'device_name' => 'required|string|max:255',
+            'device_name' => 'nullable|string|max:255',
         ]);
 
         $user = User::where('email', $request->email)->first();
@@ -33,12 +33,12 @@ class AuthController extends Controller
             ]);
         }
 
+        $deviceName = $request->input('device_name') ?: 'suitest-client';
+
         // Hapus token lama dari device yang sama (opsional, biar ga numpuk)
-        $user->tokens()->where('name', $request->device_name)->delete();
+        $user->tokens()->where('name', $deviceName)->delete();
 
-        $token = $user->createToken($request->device_name)->plainTextToken;
-
-        $token = $user->createToken($request->device_name)->plainTextToken;
+        $token = $user->createToken($deviceName)->plainTextToken;
 
         return response()->json([
             'success' => true,
