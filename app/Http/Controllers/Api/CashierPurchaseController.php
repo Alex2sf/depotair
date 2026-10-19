@@ -31,6 +31,18 @@ class CashierPurchaseController extends Controller
         ]);
 
         $user = $request->user();
+
+        // GEMBOK PENUH: Cek apakah laci kasir masih terkunci oleh shift kasir sebelumnya
+        if (in_array($user->role, ['kasir', 'admin'])) {
+            $activeShift = \App\Models\CashierShift::where('status', 'OPEN')->latest('id')->first();
+            if ($activeShift && $activeShift->user_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Laci kasir terkunci! Kasir sebelumnya (' . ($activeShift->user?->name ?? 'Kasir Lain') . ') belum menutup shift. Harap lakukan serah terima shift terlebih dahulu.',
+                ], 403);
+            }
+        }
+
         $category = $request->category;
         $productId = $request->product_id;
         $quantity = (int) ($request->quantity ?? 0);
