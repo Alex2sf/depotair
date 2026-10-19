@@ -22,12 +22,12 @@ class CashierPurchaseController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'category'    => 'required|in:STOCK,OPERATIONAL',
-            'product_id'  => 'required_if:category,STOCK|nullable|exists:products,id',
-            'quantity'    => 'required_if:category,STOCK|nullable|integer|min:1',
+            'category'    => 'required|in:OPERATIONAL',
             'amount'      => 'required|integer|min:1',
             'description' => 'required|string|max:255',
             'proof_image' => 'nullable|image|max:10240', // Maks 10MB foto bukti/nota
+        ], [
+            'category.in' => 'Pengeluaran uang laci hanya untuk operasional harian (bensin, es batu, dll). Pengadaan stok barang toko wajib melalui menu Pengajuan Pengadaan Stok.',
         ]);
 
         $user = $request->user();

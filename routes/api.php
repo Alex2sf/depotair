@@ -76,12 +76,20 @@ Route::middleware(['auth:sanctum', 'role:admin,kurir'])->group(function () {
     });
 });
 
-// Di routes/api.php — TAMBAHIN INI DI BAWAH
 Route::middleware(['auth:sanctum', 'role:owner,admin'])->group(function () {
     Route::get('/owner/dashboard', [OwnerDashboardController::class, 'index']);
     Route::get('/owner/transactions', [OwnerDashboardController::class, 'transactions']); // RIWAYAT LENGKAP
     Route::get('/owner/inventory', [OwnerDashboardController::class, 'inventory']); // BARU!
     Route::post('/owner/bulk-complete-old-orders', [OwnerDashboardController::class, 'bulkCompleteOldOrders']); // BULK COMPLETE PESANAN LAMA > 3 HARI
+    Route::post('/procurements/{id}/review', [\App\Http\Controllers\Api\StockProcurementController::class, 'review']); // APPROVE/REJECT + POTONG KAS BESAR
+});
+
+// ==================== FITUR PENGADAAN STOK (KASIR, ADMIN, OWNER) ====================
+Route::middleware(['auth:sanctum', 'role:admin,kasir,owner'])->group(function () {
+    Route::get('/procurements', [\App\Http\Controllers\Api\StockProcurementController::class, 'index']);
+    Route::get('/procurements/{id}', [\App\Http\Controllers\Api\StockProcurementController::class, 'show']);
+    Route::post('/procurements', [\App\Http\Controllers\Api\StockProcurementController::class, 'store']);
+    Route::post('/procurements/{id}/receive', [\App\Http\Controllers\Api\StockProcurementController::class, 'receive']);
 });
 
 
