@@ -14,24 +14,18 @@ class ShiftController extends Controller
     {
         $user = $request->user();
 
-        // Cari shift OPEN milik user ini
-        $activeShift = \App\Models\CashierShift::where('user_id', $user->id)
-            ->where('status', 'OPEN')
+        // 1. Ambil SATU-SATUNYA shift OPEN yang ada di seluruh toko (1 laci fisik)
+        $activeShift = \App\Models\CashierShift::where('status', 'OPEN')
+            ->with('user:id,name')
             ->latest('id')
             ->first();
 
-        // Cari saldo laci kasir saat ini
+        // 2. Ambil saldo laci kasir saat ini
         $cashierBalance = (int) (\App\Models\CashBalance::where('type', 'CASHIER')->value('balance') ?? 0);
 
+        // Jika sama sekali belum ada shift OPEN di toko:
         if (!$activeShift) {
-            // Jika ada shift OPEN dari kasir lain, kasir lain mungkin belum tutup shift atau serah terima
-            $otherOpenShift = \App\Models\CashierShift::where('status', 'OPEN')
-                ->where('user_id', '!=', $user->id)
-                ->with('user:id,name')
-                ->latest('id')
-                ->first();
-
-            // Auto-buka shift untuk kasir yang baru login dengan modal awal = saldo laci sekarang
+            // Buat shift baru untuk user yang sedang aktif
             $activeShift = \App\Models\CashierShift::create([
                 'user_id'        => $user->id,
                 'start_time'     => now(),
@@ -42,12 +36,24 @@ class ShiftController extends Controller
                 'expected_cash'  => $cashierBalance,
                 'status'         => 'OPEN',
             ]);
+        } else {
+            // JIKA ADA SHIFT OPEN LEBIH DARI 1 (Legacy bug / duplikat), auto-close yang lama
+            \App\Models\CashierShift::where('status', 'OPEN')
+                ->where('id', '!=', $activeShift->id)
+                ->update([
+                    'status'   => 'CLOSED',
+                    'end_time' => now(),
+                    'notes'    => 'Auto-closed by system: single active shift enforcement',
+                ]);
         }
+
+        // Cek apakah shift OPEN ini milik user yang sedang login atau kasir lain
+        $isCurrentUser = ($activeShift->user_id === $user->id);
 
         // Hitung akumulasi real-time selama shift ini berjalan
         $shiftStart = $activeShift->start_time;
 
-        // Total penjualan TUNAI selama shift (selama tidak CANCELLED karena uang tunai masuk laci saat checkout)
+        // Total penjualan TUNAI selama shift
         $cashSales = (int) \App\Models\Order::where('created_at', '>=', $shiftStart)
             ->where('status', '!=', 'CANCELLED')
             ->where('payment_type', 'TUNAI')
@@ -78,25 +84,26 @@ class ShiftController extends Controller
             'expected_cash'  => $expectedCash,
         ]);
 
-        // Cari shift terakhir yang sudah DITUTUP oleh kasir sebelumnya
+        // Cari shift terakhir yang sudah DITUTUP sebelum shift aktif ini
         $lastClosedShift = \App\Models\CashierShift::where('status', 'CLOSED')
             ->where('id', '!=', $activeShift->id)
             ->with('user:id,name')
             ->latest('end_time')
             ->first();
 
-        // Cari apakah ada kasir lain yang shift-nya masih OPEN (belum tutup)
-        $otherOpenShift = \App\Models\CashierShift::where('status', 'OPEN')
-            ->where('user_id', '!=', $user->id)
-            ->with('user:id,name')
-            ->latest('id')
-            ->first();
+        // Info jika shift ini milik kasir sebelumnya yang belum tutup shift
+        $unclosedShiftWarning = !$isCurrentUser ? [
+            'other_user_name' => $activeShift->user?->name ?? 'Kasir Lain',
+            'opened_at'       => $activeShift->start_time->format('d/m/Y H:i'),
+        ] : null;
 
         return response()->json([
             'success' => true,
+            'is_current_user' => $isCurrentUser,
             'shift'   => [
                 'id'             => $activeShift->id,
-                'cashier_name'   => $user->name,
+                'cashier_name'   => $activeShift->user?->name ?? $user->name,
+                'user_id'        => $activeShift->user_id,
                 'start_time'     => $activeShift->start_time->format('d/m/Y H:i'),
                 'starting_cash'  => (int) $activeShift->starting_cash,
                 'cash_sales'     => (int) $cashSales,
@@ -120,14 +127,8 @@ class ShiftController extends Controller
                 'difference'     => (int) $lastClosedShift->difference,
                 'notes'          => $lastClosedShift->notes,
             ] : null,
-            'unclosed_shift_warning' => $otherOpenShift ? [
-                'other_user_name' => $otherOpenShift->user?->name ?? 'Kasir Lain',
-                'opened_at'       => $otherOpenShift->start_time->format('d/m/Y H:i'),
-            ] : null,
-            'previous_shift_info' => $otherOpenShift ? [
-                'other_user_name' => $otherOpenShift->user?->name,
-                'opened_at'       => $otherOpenShift->start_time->format('d/m/Y H:i'),
-            ] : null,
+            'unclosed_shift_warning' => $unclosedShiftWarning,
+            'previous_shift_info' => $unclosedShiftWarning,
         ]);
     }
 
@@ -143,15 +144,15 @@ class ShiftController extends Controller
 
         $user = $request->user();
 
-        $shift = \App\Models\CashierShift::where('user_id', $user->id)
-            ->where('status', 'OPEN')
+        // Cari SATU-SATUNYA shift OPEN yang ada di toko
+        $shift = \App\Models\CashierShift::where('status', 'OPEN')
             ->latest('id')
             ->first();
 
         if (!$shift) {
             return response()->json([
                 'success' => false,
-                'message' => 'Tidak ada shift aktif yang ditemukan.',
+                'message' => 'Tidak ada shift aktif di toko yang ditemukan.',
             ], 404);
         }
 
@@ -184,6 +185,13 @@ class ShiftController extends Controller
             $expectedCash = $shift->starting_cash + $cashSales - $cashExpenses - $cashDeposited;
             $difference = $actualCash - $expectedCash;
 
+            // Catatan serah terima jika yang menutup shift adalah kasir berikutnya atau admin
+            $noteText = $request->notes;
+            if ($shift->user_id !== $user->id) {
+                $handoverInfo = "Serah terima & ditutup oleh {$user->name}";
+                $noteText = $noteText ? "{$noteText} ({$handoverInfo})" : $handoverInfo;
+            }
+
             // Tutup shift
             $shift->update([
                 'end_time'       => $endTime,
@@ -193,7 +201,7 @@ class ShiftController extends Controller
                 'expected_cash'  => $expectedCash,
                 'actual_cash'    => $actualCash,
                 'difference'     => $difference,
-                'notes'          => $request->notes,
+                'notes'          => $noteText,
                 'status'         => 'CLOSED',
             ]);
 
@@ -206,12 +214,20 @@ class ShiftController extends Controller
                 ]);
             }
 
+            // Kunci: Pastikan SEMUA shift OPEN di toko tertutup bersih (tidak ada yang menggantung lagi)
+            \App\Models\CashierShift::where('status', 'OPEN')
+                ->update([
+                    'status'   => 'CLOSED',
+                    'end_time' => $endTime,
+                ]);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Shift berhasil ditutup! Data tersimpan di pembukuan.',
                 'data'    => [
                     'id'            => $shift->id,
-                    'cashier_name'  => $user->name,
+                    'cashier_name'  => $shift->user?->name ?? $user->name,
+                    'closed_by'     => $user->name,
                     'start_time'    => $shift->start_time->format('d/m/Y H:i'),
                     'end_time'      => $shift->end_time->format('d/m/Y H:i'),
                     'starting_cash' => (int) $shift->starting_cash,
