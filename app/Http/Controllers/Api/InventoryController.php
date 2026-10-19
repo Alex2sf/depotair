@@ -91,6 +91,8 @@ class InventoryController extends Controller
                     'nama'             => $inv->product->name,
                     'sku'              => $inv->product->sku,
                     'unit'             => $inv->product->unit,
+                    'cogs'             => (int) ($inv->product->cogs ?? 0),
+                    'price'            => (int) ($inv->product->price ?? 0),
                     'stok_awal_hari'   => (int) ($inv->quantity + $soldToday), 
                     'terjual_hari_ini' => (int) $soldToday,
                     'stok_sistem'      => (int) $inv->quantity,
