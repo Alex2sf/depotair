@@ -76,19 +76,29 @@ class StockProcurementController extends Controller
 
         return DB::transaction(function () use ($request, $user) {
             $datePrefix = Carbon::now()->format('Ymd');
-            $todayCount = StockProcurement::whereDate('created_at', Carbon::today())->count() + 1;
-            $procurementNumber = 'PR-' . $datePrefix . '-' . str_pad($todayCount, 4, '0', STR_PAD_LEFT);
 
-            $procurement = StockProcurement::create([
-                'procurement_number'     => $procurementNumber,
-                'requested_by'           => $user->id,
-                'total_estimated_amount' => 0,
-                'total_approved_amount'  => 0,
-                'status'                 => 'PENDING',
-                'notes'                  => $request->notes,
-            ]);
+            // Cari pengajuan PENDING milik user hari ini yang belum diproses Owner
+            $procurement = StockProcurement::where('requested_by', $user->id)
+                ->where('status', 'PENDING')
+                ->whereDate('created_at', Carbon::today())
+                ->latest()
+                ->first();
 
-            $totalEstimated = 0;
+            if (!$procurement) {
+                $todayCount = StockProcurement::whereDate('created_at', Carbon::today())->count() + 1;
+                $procurementNumber = 'PR-' . $datePrefix . '-' . str_pad($todayCount, 4, '0', STR_PAD_LEFT);
+
+                $procurement = StockProcurement::create([
+                    'procurement_number'     => $procurementNumber,
+                    'requested_by'           => $user->id,
+                    'total_estimated_amount' => 0,
+                    'total_approved_amount'  => 0,
+                    'status'                 => 'PENDING',
+                    'notes'                  => $request->notes,
+                ]);
+            } else if ($request->filled('notes')) {
+                $procurement->update(['notes' => $request->notes]);
+            }
 
             foreach ($request->items as $itemData) {
                 $product = Product::with('inventory')->findOrFail($itemData['product_id']);
@@ -97,22 +107,41 @@ class StockProcurementController extends Controller
                 $unitCogs = (int) ($product->cogs ?? 0);
                 $subtotal = $quantity * $unitCogs;
 
-                StockProcurementItem::create([
-                    'procurement_id'      => $procurement->id,
-                    'product_id'          => $product->id,
-                    'current_stock'       => $currentStock,
-                    'quantity_requested'  => $quantity,
-                    'unit_cogs_requested' => $unitCogs,
-                    'subtotal_requested'  => $subtotal,
-                    'quantity_approved'   => $quantity, // default sama dengan request
-                    'unit_cogs_approved'  => $unitCogs,
-                    'subtotal_approved'   => $subtotal,
-                    'is_approved'         => true,
-                ]);
+                // Cek apakah produk ini sudah pernah diajukan sebelumnya di tiket pending ini
+                $existingItem = StockProcurementItem::where('procurement_id', $procurement->id)
+                    ->where('product_id', $product->id)
+                    ->first();
 
-                $totalEstimated += $subtotal;
+                if ($existingItem) {
+                    // Otomatis diperbarui ke kuantitas TERAKHIR yang diajukan kasir
+                    $existingItem->update([
+                        'current_stock'       => $currentStock,
+                        'quantity_requested'  => $quantity,
+                        'unit_cogs_requested' => $unitCogs,
+                        'subtotal_requested'  => $subtotal,
+                        'quantity_approved'   => $quantity,
+                        'unit_cogs_approved'  => $unitCogs,
+                        'subtotal_approved'   => $subtotal,
+                        'is_approved'         => true,
+                    ]);
+                } else {
+                    StockProcurementItem::create([
+                        'procurement_id'      => $procurement->id,
+                        'product_id'          => $product->id,
+                        'current_stock'       => $currentStock,
+                        'quantity_requested'  => $quantity,
+                        'unit_cogs_requested' => $unitCogs,
+                        'subtotal_requested'  => $subtotal,
+                        'quantity_approved'   => $quantity,
+                        'unit_cogs_approved'  => $unitCogs,
+                        'subtotal_approved'   => $subtotal,
+                        'is_approved'         => true,
+                    ]);
+                }
             }
 
+            // Hitung ulang total pengajuan
+            $totalEstimated = $procurement->items()->sum('subtotal_requested');
             $procurement->update([
                 'total_estimated_amount' => $totalEstimated,
                 'total_approved_amount'  => $totalEstimated,
@@ -122,7 +151,7 @@ class StockProcurementController extends Controller
                 'success' => true,
                 'message' => 'Pengajuan belanja stok berhasil dikirim ke Owner!',
                 'data'    => $procurement->load('items.product'),
-            ], 201);
+            ], 200);
         });
     }
 

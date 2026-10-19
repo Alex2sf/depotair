@@ -64,11 +64,18 @@ class InventoryController extends Controller
             ->pluck('name')
             ->toArray();
     
-        // 2. STOK OPNAME BIASA (sama kayak sebelumnya)
+        // 2. AMBIL STATUS PENGAJUAN PENDING TERAKHIR
+        $pendingProcurements = DB::table('stock_procurement_items')
+            ->join('stock_procurements', 'stock_procurement_items.procurement_id', '=', 'stock_procurements.id')
+            ->where('stock_procurements.status', 'PENDING')
+            ->pluck('stock_procurement_items.quantity_requested', 'stock_procurement_items.product_id')
+            ->toArray();
+
+        // 3. STOK OPNAME BIASA (sama kayak sebelumnya)
         $inventories = Inventory::with('product')
             ->whereHas('product', fn($q) => $q->where('is_enabled', true))
             ->get()
-            ->map(function ($inv) use ($today) {
+            ->map(function ($inv) use ($today, $pendingProcurements) {
                 // Perhitungan terjual HARI INI dimodifikasi sesuai request:
                 // "Reset setelah simpan". Jadi hitung penjualan sejak terakhir opname.
                 // Jika belum pernah opname, fallback ke hari ini jam 00:00
@@ -85,21 +92,23 @@ class InventoryController extends Controller
                 $realQty = $inv->real_quantity ?? $inv->quantity;
                 $lastOpname = $inv->last_opname_at?->format('d/m/Y H:i') ?? '-';
                 $selisih = $inv->quantity - $realQty;
+                $pendingQty = (int) ($pendingProcurements[$inv->product_id] ?? 0);
     
                 return [
-                    'product_id'       => $inv->product_id,
-                    'nama'             => $inv->product->name,
-                    'sku'              => $inv->product->sku,
-                    'unit'             => $inv->product->unit,
-                    'cogs'             => (int) ($inv->product->cogs ?? 0),
-                    'price'            => (int) ($inv->product->price ?? 0),
-                    'stok_awal_hari'   => (int) ($inv->quantity + $soldToday), 
-                    'terjual_hari_ini' => (int) $soldToday,
-                    'stok_sistem'      => (int) $inv->quantity,
-                    'stok_riil'        => (int) $realQty,
-                    'selisih'          => (int) $selisih,
-                    'status'           => $selisih == 0 ? 'normal' : ($selisih > 0 ? 'kurang' : 'lebih'),
-                    'last_opname'      => $lastOpname,
+                    'product_id'              => $inv->product_id,
+                    'nama'                    => $inv->product->name,
+                    'sku'                     => $inv->product->sku,
+                    'unit'                    => $inv->product->unit,
+                    'cogs'                    => (int) ($inv->product->cogs ?? 0),
+                    'price'                   => (int) ($inv->product->price ?? 0),
+                    'stok_awal_hari'          => (int) ($inv->quantity + $soldToday), 
+                    'terjual_hari_ini'        => (int) $soldToday,
+                    'stok_sistem'             => (int) $inv->quantity,
+                    'stok_riil'               => (int) $realQty,
+                    'selisih'                 => (int) $selisih,
+                    'status'                  => $selisih == 0 ? 'normal' : ($selisih > 0 ? 'kurang' : 'lebih'),
+                    'last_opname'             => $lastOpname,
+                    'pending_procurement_qty' => $pendingQty,
                 ];
             })
             ->sortByDesc('selisih')
