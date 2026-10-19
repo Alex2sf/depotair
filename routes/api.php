@@ -87,6 +87,7 @@ Route::middleware(['auth:sanctum', 'role:owner,admin'])->group(function () {
 // ==================== FITUR PENGADAAN STOK (KASIR, ADMIN, OWNER) ====================
 Route::middleware(['auth:sanctum', 'role:admin,kasir,owner'])->group(function () {
     Route::get('/procurements', [\App\Http\Controllers\Api\StockProcurementController::class, 'index']);
+    Route::get('/procurements/catalog', [\App\Http\Controllers\Api\StockProcurementController::class, 'catalog']);
     Route::get('/procurements/{id}', [\App\Http\Controllers\Api\StockProcurementController::class, 'show']);
     Route::post('/procurements', [\App\Http\Controllers\Api\StockProcurementController::class, 'store']);
     Route::post('/procurements/{id}/receive', [\App\Http\Controllers\Api\StockProcurementController::class, 'receive']);

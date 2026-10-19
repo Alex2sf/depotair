@@ -43,6 +43,81 @@ class StockProcurementController extends Controller
     }
 
     /**
+     * 1b. Katalog Produk & Rekomendasi Restock Cerdas untuk Keranjang Pengadaan
+     */
+    public function catalog(Request $request)
+    {
+        $today = Carbon::today();
+
+        // 1. Ambil status pengajuan PENDING
+        $pendingItems = DB::table('stock_procurement_items')
+            ->join('stock_procurements', 'stock_procurement_items.procurement_id', '=', 'stock_procurements.id')
+            ->where('stock_procurements.status', 'PENDING')
+            ->pluck('stock_procurement_items.quantity_requested', 'stock_procurement_items.product_id')
+            ->toArray();
+
+        // 2. Hitung penjualan hari ini per produk
+        $salesToday = DB::table('order_product')
+            ->join('orders', 'order_product.order_id', '=', 'orders.id')
+            ->whereIn('orders.status', ['COMPLETE', 'ON_DELIVERY'])
+            ->where('orders.created_at', '>=', $today->copy()->startOfDay())
+            ->groupBy('order_product.product_id')
+            ->select('order_product.product_id', DB::raw('SUM(order_product.quantity) as total_sold'))
+            ->pluck('total_sold', 'product_id')
+            ->toArray();
+
+        // 3. Ambil seluruh produk aktif dengan relasi inventory
+        $products = Product::with('inventory')
+            ->where('is_enabled', true)
+            ->orderBy('name')
+            ->get()
+            ->map(function ($product) use ($salesToday, $pendingItems) {
+                $inventory = $product->inventory;
+                $currentStock = (int) ($inventory?->quantity ?? 0);
+                $threshold = (int) ($inventory?->low_stock_threshold ?? 10);
+                $soldToday = (int) ($salesToday[$product->id] ?? 0);
+                $isLowStock = $currentStock <= $threshold;
+                $isRecommended = $isLowStock || $soldToday > 0;
+
+                // Saran jumlah restock cerdas
+                $suggestedQty = 10;
+                if ($isLowStock) {
+                    $deficit = max(0, ($threshold * 2) - $currentStock);
+                    $suggestedQty = max($deficit, $soldToday, 10);
+                } else if ($soldToday > 0) {
+                    $suggestedQty = max($soldToday, 10);
+                }
+
+                return [
+                    'id'                      => $product->id,
+                    'name'                    => $product->name,
+                    'sku'                     => $product->sku,
+                    'unit'                    => $product->unit,
+                    'price'                   => (int) ($product->price ?? 0),
+                    'cogs'                    => (int) ($product->cogs ?? 0),
+                    'image_url'               => $product->image_url ?? null,
+                    'current_stock'           => $currentStock,
+                    'low_stock_threshold'     => $threshold,
+                    'sold_today'              => $soldToday,
+                    'is_low_stock'            => $isLowStock,
+                    'is_recommended'          => $isRecommended,
+                    'suggested_quantity'      => $suggestedQty,
+                    'pending_procurement_qty' => (int) ($pendingItems[$product->id] ?? 0),
+                ];
+            });
+
+        $recommendations = $products->filter(fn($p) => $p['is_recommended'])->values();
+
+        return response()->json([
+            'success'         => true,
+            'recommendations' => $recommendations,
+            'all_products'    => $products->values(),
+            'total_products'  => $products->count(),
+            'low_stock_count' => $products->where('is_low_stock', true)->count(),
+        ]);
+    }
+
+    /**
      * 2. Detail Pengajuan Pengadaan Stok
      */
     public function show($id)

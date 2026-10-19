@@ -108,6 +108,7 @@ class InventoryController extends Controller
                     'selisih'                 => (int) $selisih,
                     'status'                  => $selisih == 0 ? 'normal' : ($selisih > 0 ? 'kurang' : 'lebih'),
                     'last_opname'             => $lastOpname,
+                    'low_stock_threshold'     => (int) ($inv->low_stock_threshold ?? 10),
                     'pending_procurement_qty' => $pendingQty,
                 ];
             })
