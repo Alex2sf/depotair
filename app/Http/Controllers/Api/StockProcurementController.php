@@ -92,6 +92,7 @@ class StockProcurementController extends Controller
                     'id'                      => $product->id,
                     'name'                    => $product->name,
                     'sku'                     => $product->sku,
+                    'product_type'            => $product->product_type ?? 'REFILL',
                     'unit'                    => $product->unit,
                     'price'                   => (int) ($product->price ?? 0),
                     'cogs'                    => (int) ($product->cogs ?? 0),
@@ -108,12 +109,26 @@ class StockProcurementController extends Controller
 
         $recommendations = $products->filter(fn($p) => $p['is_recommended'])->values();
 
+        $productTypes = [
+            ['value' => 'SEMUA', 'label' => 'Semua'],
+        ];
+        if (\Illuminate\Support\Facades\Schema::hasTable('product_types')) {
+            $types = DB::table('product_types')->where('is_active', 1)->get();
+            foreach ($types as $t) {
+                $productTypes[] = [
+                    'value' => $t->code,
+                    'label' => $t->name,
+                ];
+            }
+        }
+
         return response()->json([
             'success'         => true,
             'recommendations' => $recommendations,
             'all_products'    => $products->values(),
             'total_products'  => $products->count(),
             'low_stock_count' => $products->where('is_low_stock', true)->count(),
+            'product_types'   => $productTypes,
         ]);
     }
 
