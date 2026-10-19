@@ -59,8 +59,8 @@
                      <span class="text-[10px] text-gray-400">Ketik untuk auto-fill data</span>
                  </div>
                  <div class="relative flex items-center">
-                     <input type="tel" name="phone" id="phone_input" placeholder="contoh: 08123456789" required 
-                         pattern="[0-9]{9,15}" title="Nomor WhatsApp harus berupa 9 sampai 15 digit angka"
+                     <input type="tel" name="phone" id="phone_input" placeholder="contoh: 08123456789 atau +62 821..." required 
+                         pattern="[0-9+\s\-\(\)]{9,25}" title="Nomor WhatsApp minimal 9 digit"
                          value="{{ old('phone') }}"
                          class="w-full text-sm border-b border-gray-200 focus:border-shopee py-2 outline-none transition bg-transparent pr-8"
                          autocomplete="tel">
@@ -308,8 +308,9 @@
     let lookupTimer = null;
 
     async function checkCustomerPhone(phone) {
+        if (!phone) return;
         const clean = phone.replace(/[^0-9]/g, '');
-        if (clean.length < 9) {
+        if (clean.length < 8) {
             if (statusBanner) statusBanner.classList.add('hidden');
             if (phoneCheck) phoneCheck.classList.add('hidden');
             return;
@@ -322,7 +323,7 @@
         if (phoneCheck) phoneCheck.classList.add('hidden');
 
         try {
-            const res = await fetch('/customer/lookup?phone=' + encodeURIComponent(clean));
+            const res = await fetch('/customer/lookup?phone=' + encodeURIComponent(phone.trim()));
             const data = await res.json();
 
             if (phoneSpinner) phoneSpinner.classList.add('hidden');
@@ -359,7 +360,16 @@
         phoneInput.addEventListener('input', function() {
             clearTimeout(lookupTimer);
             const val = this.value;
-            lookupTimer = setTimeout(() => checkCustomerPhone(val), 400);
+            lookupTimer = setTimeout(() => checkCustomerPhone(val), 350);
+        });
+
+        phoneInput.addEventListener('change', function() {
+            clearTimeout(lookupTimer);
+            checkCustomerPhone(this.value);
+        });
+
+        phoneInput.addEventListener('paste', function() {
+            setTimeout(() => checkCustomerPhone(phoneInput.value), 100);
         });
 
         phoneInput.addEventListener('blur', function() {

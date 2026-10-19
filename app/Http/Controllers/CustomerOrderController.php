@@ -111,29 +111,58 @@ class CustomerOrderController extends Controller
     }
 
     /**
+     * Cari customer secara fleksibel berdasarkan nomor telepon
+     * Mendukung variasi: 08..., 62..., +62..., pemisah spasi, strip (-), dll.
+     */
+    private function findCustomerByPhone(string $rawPhone): ?Customer
+    {
+        $clean = preg_replace('/[^0-9]/', '', $rawPhone);
+        if (strlen($clean) < 7) {
+            return null;
+        }
+
+        // Ekstrak nomor inti tanpa kode negara 62 atau awalan 0
+        $core = $clean;
+        if (str_starts_with($core, '62')) {
+            $core = substr($core, 2);
+        } elseif (str_starts_with($core, '0')) {
+            $core = substr($core, 1);
+        }
+
+        if (strlen($core) < 6) {
+            return null;
+        }
+
+        // 1. Cepat: Cek variasi umum dengan indexed query
+        $candidates = array_filter(array_unique([
+            $rawPhone,
+            $clean,
+            '0' . $core,
+            '62' . $core,
+            '+62' . $core,
+            '+62 ' . $core,
+        ]));
+
+        $customer = Customer::whereIn('phone_number', $candidates)->first();
+        if ($customer) {
+            return $customer;
+        }
+
+        // 2. Fallback: Sanitasi kolom database (menghilangkan spasi, strip, +, titik)
+        return Customer::where(function ($query) use ($core) {
+            $query->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(phone_number, ' ', ''), '-', ''), '+', ''), '.', '') = ?", ['0' . $core])
+                  ->orWhereRaw("REPLACE(REPLACE(REPLACE(REPLACE(phone_number, ' ', ''), '-', ''), '+', ''), '.', '') = ?", ['62' . $core])
+                  ->orWhereRaw("REPLACE(REPLACE(REPLACE(REPLACE(phone_number, ' ', ''), '-', ''), '+', ''), '.', '') = ?", [$core]);
+        })->first();
+    }
+
+    /**
      * API Lookup Customer berdasarkan nomor telepon untuk auto-fill di web checkout
      */
     public function lookupCustomer(Request $request)
     {
         $phone = trim($request->phone ?? '');
-        if (empty($phone) || strlen($phone) < 9) {
-            return response()->json([
-                'success' => false,
-                'found'   => false,
-                'message' => 'Nomor telepon minimal 9 digit.',
-            ]);
-        }
-
-        // Variasi normalisasi nomor HP (08 vs 62 vs +62)
-        $clean = preg_replace('/[^0-9]/', '', $phone);
-        $variations = array_unique([$phone, $clean]);
-        if (str_starts_with($clean, '62')) {
-            $variations[] = '0' . substr($clean, 2);
-        } elseif (str_starts_with($clean, '0')) {
-            $variations[] = '62' . substr($clean, 1);
-        }
-
-        $customer = Customer::whereIn('phone_number', array_unique($variations))->first();
+        $customer = $this->findCustomerByPhone($phone);
 
         if (!$customer) {
             return response()->json([
@@ -167,7 +196,7 @@ class CustomerOrderController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'phone' => 'required|string|min:9|max:20',
+            'phone' => 'required|string|min:9|max:25',
             'address' => $request->order_type === 'DELIVERY' ? 'required|string|max:500' : 'nullable|string',
             'notes' => 'nullable|string|max:500',
             'order_type' => 'required|in:DELIVERY,SELF_PICKUP',
@@ -192,14 +221,15 @@ class CustomerOrderController extends Controller
 
         // 1. Buat atau cari & update customer
         $cleanPhone = preg_replace('/[^0-9]/', '', $request->phone);
-        $phoneVars = array_unique([$request->phone, $cleanPhone]);
-        if (str_starts_with($cleanPhone, '62')) {
-            $phoneVars[] = '0' . substr($cleanPhone, 2);
-        } elseif (str_starts_with($cleanPhone, '0')) {
-            $phoneVars[] = '62' . substr($cleanPhone, 1);
+        $core = $cleanPhone;
+        if (str_starts_with($core, '62')) {
+            $core = substr($core, 2);
+        } elseif (str_starts_with($core, '0')) {
+            $core = substr($core, 1);
         }
+        $standardPhone = !empty($core) ? ('0' . $core) : $cleanPhone;
 
-        $customer = Customer::whereIn('phone_number', array_unique($phoneVars))->first();
+        $customer = $this->findCustomerByPhone($request->phone);
         if ($customer) {
             $customer->update([
                 'name'    => $request->name,
@@ -207,7 +237,7 @@ class CustomerOrderController extends Controller
             ]);
         } else {
             $customer = Customer::create([
-                'phone_number' => $request->phone,
+                'phone_number' => $standardPhone,
                 'name'         => $request->name,
                 'address'      => $request->address,
             ]);
