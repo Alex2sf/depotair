@@ -33,6 +33,25 @@ class AuthController extends Controller
             ]);
         }
 
+        // GEMBOK KETAT: Jika kasir login saat kasir sebelumnya belum tutup shift, tolak login!
+        if ($user->role === 'kasir') {
+            $unclosedShift = \App\Models\CashierShift::where('status', 'OPEN')
+                ->where('user_id', '!=', $user->id)
+                ->with('user:id,name')
+                ->latest('id')
+                ->first();
+
+            if ($unclosedShift) {
+                $otherKasirName = $unclosedShift->user?->name ?? 'Kasir sebelumnya';
+                $openedAt = $unclosedShift->start_time->format('d/m/Y H:i');
+                return response()->json([
+                    'success' => false,
+                    'code'    => 'UNCLOSED_SHIFT_EXISTS',
+                    'message' => "Akses Masuk Ditolak!\n\nKasir {$otherKasirName} belum melakukan Tutup Shift (buka sejak {$openedAt}).\n\nMinta {$otherKasirName} untuk login dan menutup shiftnya terlebih dahulu sebelum kasir lain bisa mulai.",
+                ], 403);
+            }
+        }
+
         $deviceName = $request->input('device_name') ?: 'suitest-client';
 
         // Hapus token lama dari device yang sama (opsional, biar ga numpuk)

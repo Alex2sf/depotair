@@ -156,6 +156,15 @@ class ShiftController extends Controller
             ], 404);
         }
 
+        // HANYA KASIR PEMILIK SHIFT (atau Admin/Owner) yang berhak menutup shiftnya
+        if ($user->role === 'kasir' && $shift->user_id !== $user->id) {
+            $ownerName = $shift->user?->name ?? 'Kasir sebelumnya';
+            return response()->json([
+                'success' => false,
+                'message' => "Akses Ditolak! Shift ini milik {$ownerName}. Hanya {$ownerName} yang berhak menutup shift ini.",
+            ], 403);
+        }
+
         $endTime = now();
         $actualCash = (int) $request->actual_cash;
 
