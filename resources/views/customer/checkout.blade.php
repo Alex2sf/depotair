@@ -50,25 +50,56 @@
 
          <!-- Input Fields -->
          <div class="space-y-3">
+             <!-- Nomor WhatsApp (Kunci Utama Auto-fill) -->
              <div>
-                <input type="text" name="name" placeholder="Nama Lengkap" required 
-                    class="w-full text-sm border-b border-gray-200 focus:border-shopee py-2 outline-none transition bg-transparent"
-                    autocomplete="name">
+                 <div class="flex justify-between items-center mb-1">
+                     <label class="text-[11px] font-bold text-gray-700 flex items-center gap-1">
+                         <i class="fab fa-whatsapp text-green-600 text-sm"></i> Nomor WhatsApp
+                     </label>
+                     <span class="text-[10px] text-gray-400">Ketik untuk auto-fill data</span>
+                 </div>
+                 <div class="relative flex items-center">
+                     <input type="tel" name="phone" id="phone_input" placeholder="contoh: 08123456789" required 
+                         pattern="[0-9]{9,15}" title="Nomor WhatsApp harus berupa 9 sampai 15 digit angka"
+                         value="{{ old('phone') }}"
+                         class="w-full text-sm border-b border-gray-200 focus:border-shopee py-2 outline-none transition bg-transparent pr-8"
+                         autocomplete="tel">
+                     <span id="phone_spinner" class="hidden absolute right-2 text-shopee text-xs">
+                         <i class="fas fa-spinner fa-spin"></i>
+                     </span>
+                     <span id="phone_check" class="hidden absolute right-2 text-green-600 text-sm">
+                         <i class="fas fa-check-circle"></i>
+                     </span>
+                 </div>
+                 <!-- Status Banner Auto-fill -->
+                 <div id="customer_status_banner" class="hidden mt-2 p-2.5 rounded-lg text-xs transition"></div>
              </div>
+
+             <!-- Nama Lengkap -->
              <div>
-                 <input type="tel" name="phone" placeholder="Nomor WhatsApp (contoh: 08123456789)" required 
-                     pattern="[0-9]{9,15}" title="Nomor WhatsApp harus berupa 9 sampai 15 digit angka"
-                     value="{{ old('phone') }}"
+                 <label class="text-[11px] font-bold text-gray-700 flex items-center gap-1 mb-1">
+                     <i class="far fa-user text-gray-500 text-xs"></i> Nama Lengkap
+                 </label>
+                 <input type="text" name="name" id="name_input" placeholder="Nama Anda" required 
+                     value="{{ old('name') }}"
                      class="w-full text-sm border-b border-gray-200 focus:border-shopee py-2 outline-none transition bg-transparent"
-                     autocomplete="tel">
-              </div>
+                     autocomplete="name">
+             </div>
              
+             <!-- Alamat Pengantaran -->
              <div id="address_section">
-                <textarea name="address" id="address_input" placeholder="Alamat Lengkap (Jalan, No Rumah, Patokan)" rows="2" required
-                    class="w-full text-sm border-b border-gray-200 focus:border-shopee py-2 outline-none transition bg-transparent resize-none"></textarea>
-                
-                <input type="url" name="address_link" placeholder="Link Google Maps (Opsional)" 
-                    class="w-full text-sm border-b border-gray-200 focus:border-shopee py-2 outline-none transition bg-transparent">
+                 <label class="text-[11px] font-bold text-gray-700 flex items-center gap-1 mb-1">
+                     <i class="fas fa-home text-gray-500 text-xs"></i> Alamat Pengiriman
+                 </label>
+                 <textarea name="address" id="address_input" placeholder="Alamat Lengkap (Jalan, No Rumah, RT/RW, Patokan)" rows="2" required
+                     class="w-full text-sm border-b border-gray-200 focus:border-shopee py-2 outline-none transition bg-transparent resize-none">{{ old('address') }}</textarea>
+                 
+                 <div class="mt-2">
+                     <label class="text-[10px] text-gray-500 font-semibold block mb-0.5">Link Google Maps (Opsional)</label>
+                     <input type="url" name="address_link" id="address_link_input" placeholder="https://maps.app.goo.gl/..." 
+                         value="{{ old('address_link') }}"
+                         class="w-full text-sm border-b border-gray-200 focus:border-shopee py-2 outline-none transition bg-transparent">
+                 </div>
              </div>
              
              <!-- Scheduled Delivery -->
@@ -236,7 +267,7 @@
          if(checkedPayment) togglePayment(checkedPayment.value);
     });
 
-    // Mencegah double submit order di web browser
+    // Mencegah double submit order di web browser & simpan ke LocalStorage
     const checkoutForm = document.getElementById('checkoutForm');
     if (checkoutForm) {
         checkoutForm.addEventListener('submit', function(e) {
@@ -246,7 +277,121 @@
                 btn.classList.add('opacity-75', 'cursor-not-allowed');
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Memproses Pesanan...';
             }
+
+            // Simpan info ke localStorage agar pesanan berikutnya otomatis terisi
+            try {
+                const phoneVal = document.getElementById('phone_input')?.value;
+                const nameVal = document.getElementById('name_input')?.value;
+                const addressVal = document.getElementById('address_input')?.value;
+                const mapsVal = document.getElementById('address_link_input')?.value;
+
+                if (phoneVal) localStorage.setItem('depot_phone', phoneVal);
+                if (nameVal) localStorage.setItem('depot_name', nameVal);
+                if (addressVal) localStorage.setItem('depot_address', addressVal);
+                if (mapsVal) localStorage.setItem('depot_maps', mapsVal);
+            } catch (_) {}
         });
     }
+
+    // =========================================================================
+    // SMART AUTO-FILL BY NOMOR WHATSAPP (PELANGGAN LAMA & BARU)
+    // =========================================================================
+    const phoneInput = document.getElementById('phone_input');
+    const nameInput = document.getElementById('name_input');
+    const addressInput = document.getElementById('address_input');
+    const mapsInput = document.getElementById('address_link_input');
+    const phoneSpinner = document.getElementById('phone_spinner');
+    const phoneCheck = document.getElementById('phone_check');
+    const statusBanner = document.getElementById('customer_status_banner');
+
+    let lastCheckedPhone = '';
+    let lookupTimer = null;
+
+    async function checkCustomerPhone(phone) {
+        const clean = phone.replace(/[^0-9]/g, '');
+        if (clean.length < 9) {
+            if (statusBanner) statusBanner.classList.add('hidden');
+            if (phoneCheck) phoneCheck.classList.add('hidden');
+            return;
+        }
+
+        if (clean === lastCheckedPhone) return;
+        lastCheckedPhone = clean;
+
+        if (phoneSpinner) phoneSpinner.classList.remove('hidden');
+        if (phoneCheck) phoneCheck.classList.add('hidden');
+
+        try {
+            const res = await fetch('/customer/lookup?phone=' + encodeURIComponent(clean));
+            const data = await res.json();
+
+            if (phoneSpinner) phoneSpinner.classList.add('hidden');
+
+            if (data.success && data.found && data.customer) {
+                // Auto-fill form fields
+                if (nameInput) nameInput.value = data.customer.name || '';
+                if (addressInput) addressInput.value = data.customer.address || '';
+                if (mapsInput && data.customer.address_link) {
+                    mapsInput.value = data.customer.address_link;
+                }
+
+                if (phoneCheck) phoneCheck.classList.remove('hidden');
+
+                if (statusBanner) {
+                    statusBanner.className = 'mt-2 p-2.5 rounded-lg text-xs flex items-center gap-2 bg-green-50 text-green-800 border border-green-200';
+                    statusBanner.innerHTML = '<i class="fas fa-check-circle text-green-600 text-sm shrink-0"></i> <div>Halo <strong>' + (data.customer.name || 'Kak') + '</strong>! Data & alamat Anda otomatis terisi dari pesanan sebelumnya.</div>';
+                    statusBanner.classList.remove('hidden');
+                }
+            } else {
+                if (phoneCheck) phoneCheck.classList.add('hidden');
+                if (statusBanner) {
+                    statusBanner.className = 'mt-2 p-2.5 rounded-lg text-xs flex items-center gap-2 bg-blue-50 text-blue-800 border border-blue-200';
+                    statusBanner.innerHTML = '<i class="fas fa-user-plus text-blue-600 text-sm shrink-0"></i> <div>👋 Halo pelanggan baru! Silakan lengkapi nama & alamat di bawah ini ya.</div>';
+                    statusBanner.classList.remove('hidden');
+                }
+            }
+        } catch (e) {
+            if (phoneSpinner) phoneSpinner.classList.add('hidden');
+        }
+    }
+
+    if (phoneInput) {
+        phoneInput.addEventListener('input', function() {
+            clearTimeout(lookupTimer);
+            const val = this.value;
+            lookupTimer = setTimeout(() => checkCustomerPhone(val), 400);
+        });
+
+        phoneInput.addEventListener('blur', function() {
+            clearTimeout(lookupTimer);
+            checkCustomerPhone(this.value);
+        });
+    }
+
+    // Auto-fill dari LocalStorage atau URL Parameter (e.g. ?phone=08123... atau ?hp=08123...)
+    window.addEventListener('DOMContentLoaded', () => {
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlPhone = urlParams.get('phone') || urlParams.get('hp');
+
+            if (urlPhone && phoneInput) {
+                phoneInput.value = urlPhone;
+                checkCustomerPhone(urlPhone);
+            } else if (phoneInput && (!phoneInput.value || phoneInput.value.trim() === '')) {
+                const savedPhone = localStorage.getItem('depot_phone');
+                const savedName = localStorage.getItem('depot_name');
+                const savedAddress = localStorage.getItem('depot_address');
+                const savedMaps = localStorage.getItem('depot_maps');
+
+                if (savedPhone) {
+                    phoneInput.value = savedPhone;
+                    if (savedName && nameInput) nameInput.value = savedName;
+                    if (savedAddress && addressInput) addressInput.value = savedAddress;
+                    if (savedMaps && mapsInput) mapsInput.value = savedMaps;
+                    checkCustomerPhone(savedPhone);
+                }
+            }
+        } catch (_) {}
+    });
 </script>
 @endsection

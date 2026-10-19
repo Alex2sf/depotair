@@ -29,6 +29,7 @@ Route::get('/cart', [CustomerOrderController::class, 'cart'])->name('cart.show')
 Route::post('/update-cart', [CustomerOrderController::class, 'updateCart'])->name('cart.update');
 Route::post('/remove-from-cart/{id}', [CustomerOrderController::class, 'removeFromCart'])->name('cart.remove');
 Route::get('/checkout', [CustomerOrderController::class, 'checkout'])->name('checkout');
+Route::get('/customer/lookup', [CustomerOrderController::class, 'lookupCustomer'])->name('customer.lookup');
 Route::post('/submit-order', [CustomerOrderController::class, 'submitOrder'])->name('order.submit');
 Route::get('/success/{order_number}', [CustomerOrderController::class, 'success'])->name('order.success');
 // Tracking pesanan buat customer

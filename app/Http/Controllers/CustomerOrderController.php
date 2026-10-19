@@ -110,6 +110,59 @@ class CustomerOrderController extends Controller
         return view('customer.checkout', compact('cart', 'subtotal'));
     }
 
+    /**
+     * API Lookup Customer berdasarkan nomor telepon untuk auto-fill di web checkout
+     */
+    public function lookupCustomer(Request $request)
+    {
+        $phone = trim($request->phone ?? '');
+        if (empty($phone) || strlen($phone) < 9) {
+            return response()->json([
+                'success' => false,
+                'found'   => false,
+                'message' => 'Nomor telepon minimal 9 digit.',
+            ]);
+        }
+
+        // Variasi normalisasi nomor HP (08 vs 62 vs +62)
+        $clean = preg_replace('/[^0-9]/', '', $phone);
+        $variations = array_unique([$phone, $clean]);
+        if (str_starts_with($clean, '62')) {
+            $variations[] = '0' . substr($clean, 2);
+        } elseif (str_starts_with($clean, '0')) {
+            $variations[] = '62' . substr($clean, 1);
+        }
+
+        $customer = Customer::whereIn('phone_number', array_unique($variations))->first();
+
+        if (!$customer) {
+            return response()->json([
+                'success' => true,
+                'found'   => false,
+                'message' => 'Pelanggan baru',
+            ]);
+        }
+
+        // Cari pesanan terakhir untuk mengambil link maps (jika ada)
+        $lastOrder = Order::where('customer_id', $customer->id)
+            ->whereNotNull('address_link')
+            ->where('address_link', '!=', '')
+            ->latest('id')
+            ->first();
+
+        return response()->json([
+            'success'  => true,
+            'found'    => true,
+            'customer' => [
+                'id'           => $customer->id,
+                'name'         => $customer->name,
+                'phone_number' => $customer->phone_number,
+                'address'      => $customer->address,
+                'address_link' => $lastOrder?->address_link ?? '',
+            ],
+        ]);
+    }
+
     public function submitOrder(Request $request)
     {
         $request->validate([
@@ -137,11 +190,28 @@ class CustomerOrderController extends Controller
         $subtotal = collect($cart)->sum(fn($i) => $i['price'] * $i['qty']);
         $total = $subtotal; // bisa tambah ongkir nanti
 
-        // 1. Buat atau cari customer
-        $customer = Customer::firstOrCreate(
-            ['phone_number' => $request->phone],
-            ['name' => $request->name, 'address' => $request->address]
-        );
+        // 1. Buat atau cari & update customer
+        $cleanPhone = preg_replace('/[^0-9]/', '', $request->phone);
+        $phoneVars = array_unique([$request->phone, $cleanPhone]);
+        if (str_starts_with($cleanPhone, '62')) {
+            $phoneVars[] = '0' . substr($cleanPhone, 2);
+        } elseif (str_starts_with($cleanPhone, '0')) {
+            $phoneVars[] = '62' . substr($cleanPhone, 1);
+        }
+
+        $customer = Customer::whereIn('phone_number', array_unique($phoneVars))->first();
+        if ($customer) {
+            $customer->update([
+                'name'    => $request->name,
+                'address' => $request->address ?? $customer->address,
+            ]);
+        } else {
+            $customer = Customer::create([
+                'phone_number' => $request->phone,
+                'name'         => $request->name,
+                'address'      => $request->address,
+            ]);
+        }
 
         // 2. Buat order
        $order = Order::create([
