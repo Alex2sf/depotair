@@ -28,9 +28,14 @@
     
     <!-- ALAMAT & PENGIRIMAN -->
     <div class="bg-white mt-2 p-4 shadow-sm border-y border-gray-100">
-         <h2 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-            <i class="fas fa-map-marker-alt text-shopee"></i> Alamat Pengiriman
-         </h2>
+         <div class="flex items-center justify-between mb-3">
+             <h2 class="text-sm font-bold text-gray-800 flex items-center gap-2">
+                <i class="fas fa-map-marker-alt text-shopee"></i> Alamat Pengiriman
+             </h2>
+             <button type="button" onclick="clearCustomerForm()" class="text-[11px] text-gray-400 hover:text-red-500 font-medium flex items-center gap-1 transition cursor-pointer" title="Bersihkan dan isi data baru">
+                <i class="fas fa-redo-alt text-[10px]"></i> Bersihkan Form
+             </button>
+         </div>
          
          <!-- Toggle Type -->
          <div class="flex bg-gray-100 p-1 rounded-lg mb-4">
@@ -267,7 +272,7 @@
          if(checkedPayment) togglePayment(checkedPayment.value);
     });
 
-    // Mencegah double submit order di web browser & simpan ke LocalStorage
+    // Mencegah double submit order di web browser & bersihkan info lama di LocalStorage
     const checkoutForm = document.getElementById('checkoutForm');
     if (checkoutForm) {
         checkoutForm.addEventListener('submit', function(e) {
@@ -278,17 +283,12 @@
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Memproses Pesanan...';
             }
 
-            // Simpan info ke localStorage agar pesanan berikutnya otomatis terisi
+            // Bersihkan info pelanggan dari localStorage agar pesanan berikutnya fresh ("kaya baru")
             try {
-                const phoneVal = document.getElementById('phone_input')?.value;
-                const nameVal = document.getElementById('name_input')?.value;
-                const addressVal = document.getElementById('address_input')?.value;
-                const mapsVal = document.getElementById('address_link_input')?.value;
-
-                if (phoneVal) localStorage.setItem('depot_phone', phoneVal);
-                if (nameVal) localStorage.setItem('depot_name', nameVal);
-                if (addressVal) localStorage.setItem('depot_address', addressVal);
-                if (mapsVal) localStorage.setItem('depot_maps', mapsVal);
+                localStorage.removeItem('depot_phone');
+                localStorage.removeItem('depot_name');
+                localStorage.removeItem('depot_address');
+                localStorage.removeItem('depot_maps');
             } catch (_) {}
         });
     }
@@ -307,11 +307,36 @@
     let lastCheckedPhone = '';
     let lookupTimer = null;
 
+    // Bersihkan isi form agar mulai dari baru
+    function clearCustomerForm() {
+        if (phoneInput) phoneInput.value = '';
+        if (nameInput) nameInput.value = '';
+        if (addressInput) addressInput.value = '';
+        if (mapsInput) mapsInput.value = '';
+        if (phoneSpinner) phoneSpinner.classList.add('hidden');
+        if (phoneCheck) phoneCheck.classList.add('hidden');
+        if (statusBanner) {
+            statusBanner.innerHTML = '';
+            statusBanner.className = 'hidden';
+        }
+        lastCheckedPhone = '';
+        try {
+            localStorage.removeItem('depot_phone');
+            localStorage.removeItem('depot_name');
+            localStorage.removeItem('depot_address');
+            localStorage.removeItem('depot_maps');
+        } catch (_) {}
+        if (phoneInput) phoneInput.focus();
+    }
+
     async function checkCustomerPhone(phone) {
         if (!phone) return;
         const clean = phone.replace(/[^0-9]/g, '');
         if (clean.length < 8) {
-            if (statusBanner) statusBanner.classList.add('hidden');
+            if (statusBanner) {
+                statusBanner.innerHTML = '';
+                statusBanner.className = 'hidden';
+            }
             if (phoneCheck) phoneCheck.classList.add('hidden');
             return;
         }
@@ -378,28 +403,22 @@
         });
     }
 
-    // Auto-fill dari LocalStorage atau URL Parameter (e.g. ?phone=08123... atau ?hp=08123...)
+    // Auto-fill dari URL Parameter jika ada (e.g. ?phone=08123... atau ?hp=08123...)
+    // Tidak auto-fill dari localStorage agar form selalu fresh / bersih untuk pesanan baru
     window.addEventListener('DOMContentLoaded', () => {
         try {
+            // Bersihkan sisa cache pelanggan lama jika tersimpan di browser
+            localStorage.removeItem('depot_phone');
+            localStorage.removeItem('depot_name');
+            localStorage.removeItem('depot_address');
+            localStorage.removeItem('depot_maps');
+
             const urlParams = new URLSearchParams(window.location.search);
             const urlPhone = urlParams.get('phone') || urlParams.get('hp');
 
             if (urlPhone && phoneInput) {
                 phoneInput.value = urlPhone;
                 checkCustomerPhone(urlPhone);
-            } else if (phoneInput && (!phoneInput.value || phoneInput.value.trim() === '')) {
-                const savedPhone = localStorage.getItem('depot_phone');
-                const savedName = localStorage.getItem('depot_name');
-                const savedAddress = localStorage.getItem('depot_address');
-                const savedMaps = localStorage.getItem('depot_maps');
-
-                if (savedPhone) {
-                    phoneInput.value = savedPhone;
-                    if (savedName && nameInput) nameInput.value = savedName;
-                    if (savedAddress && addressInput) addressInput.value = savedAddress;
-                    if (savedMaps && mapsInput) mapsInput.value = savedMaps;
-                    checkCustomerPhone(savedPhone);
-                }
             }
         } catch (_) {}
     });

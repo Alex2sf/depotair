@@ -34,6 +34,14 @@
         </div>
 
 <script>
+// Bersihkan sisa data checkout lama di localStorage setelah order berhasil dibuat
+try {
+    localStorage.removeItem('depot_phone');
+    localStorage.removeItem('depot_name');
+    localStorage.removeItem('depot_address');
+    localStorage.removeItem('depot_maps');
+} catch (_) {}
+
 function copyToClipboard(text) {
     if (navigator.clipboard) {
         navigator.clipboard.writeText(text).then(() => {
