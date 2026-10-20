@@ -51,6 +51,7 @@ class CashController extends Controller
 
             CashTransaction::create([
                 'type'        => $type,
+                'cash_type'   => 'CASHIER',
                 'amount'      => $amount,
                 'description' => $request->description,
                 'recorded_by' => $user->id,
@@ -119,6 +120,7 @@ class CashController extends Controller
 
             $transaction = CashTransaction::create([
                 'type'         => CashTransaction::TYPE_DEPOSIT,
+                'cash_type'    => 'CASHIER',
                 'amount'       => $amount,
                 'description'  => "Setor ke kas besar atas nama {$userName}{$noteDesc}",
                 'proof_image'  => $proofImagePath,

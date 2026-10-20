@@ -11,6 +11,7 @@ class CashTransaction extends Model
 
     protected $fillable = [
         'type',
+        'cash_type',
         'amount',
         'description',
         'proof_image',

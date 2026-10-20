@@ -282,6 +282,7 @@ class OrderController extends Controller
                     try {
                         $cash = CashTransaction::create([
                             'type' => CashTransaction::TYPE_DEPOSIT,
+                            'cash_type' => 'CASHIER',
                             'amount' => $order->total_amount,
                             'description' => "Penjualan TUNAI #{$order->order_number}",
                             'recorded_by' => $kasir->id,
@@ -407,6 +408,7 @@ class OrderController extends Controller
 
                     CashTransaction::create([
                         'type'        => CashTransaction::TYPE_EXPENSE,
+                        'cash_type'   => 'CASHIER',
                         'amount'      => $order->total_amount,
                         'description' => "Void/Batal order #{$order->order_number}: {$reason}",
                         'recorded_by' => $request->user()->id,

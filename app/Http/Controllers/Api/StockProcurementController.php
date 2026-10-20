@@ -367,9 +367,10 @@ class StockProcurementController extends Controller
             // 1. Kurangi Kas Besar
             $mainBalance->decrement('balance', $totalApproved);
 
-            // 2. Catat Mutasi Pengeluaran Kas Besar
+            // 2. Catat Mutasi Pengeluaran Kas Besar (MAIN, bukan laci kasir)
             CashTransaction::create([
                 'type'        => CashTransaction::TYPE_EXPENSE,
+                'cash_type'   => 'MAIN',
                 'amount'      => $totalApproved,
                 'description' => "Pengadaan Stok #" . $procurement->procurement_number . " (Disetujui Owner)",
                 'recorded_by' => $user->id,

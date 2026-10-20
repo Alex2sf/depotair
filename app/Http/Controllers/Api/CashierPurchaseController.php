@@ -119,6 +119,7 @@ class CashierPurchaseController extends Controller
 
             $cashTrans = CashTransaction::create([
                 'type'        => CashTransaction::TYPE_EXPENSE,
+                'cash_type'   => 'CASHIER',
                 'amount'      => $amount,
                 'description' => $descFull,
                 'proof_image' => $proofImagePath,

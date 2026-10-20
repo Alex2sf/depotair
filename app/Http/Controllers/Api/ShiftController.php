@@ -59,9 +59,16 @@ class ShiftController extends Controller
             ->where('payment_type', 'TUNAI')
             ->sum('total_amount');
 
-        // Total pengeluaran kas laci selama shift (kecualikan void order dari shift yang sama agar tidak terpotong 2x)
+        // Total pengeluaran kas laci selama shift (khusus kasir/CASHIER, tidak termasuk Pengadaan Kas Besar)
         $cashExpenses = (int) \App\Models\CashTransaction::where('created_at', '>=', $shiftStart)
             ->where('type', 'EXPENSE')
+            ->where(function ($q) {
+                $q->where('cash_type', 'CASHIER')
+                  ->orWhere(function ($sub) {
+                      $sub->whereNull('cash_type')
+                          ->where('description', 'not like', 'Pengadaan Stok%');
+                  });
+            })
             ->where(function ($q) use ($shiftStart) {
                 $q->whereNull('order_id')
                   ->orWhereHas('order', fn ($oq) => $oq->where('created_at', '<', $shiftStart));
@@ -207,6 +214,13 @@ class ShiftController extends Controller
             $cashExpenses = (int) \App\Models\CashTransaction::where('created_at', '>=', $shift->start_time)
                 ->where('created_at', '<=', $endTime)
                 ->where('type', 'EXPENSE')
+                ->where(function ($q) {
+                    $q->where('cash_type', 'CASHIER')
+                      ->orWhere(function ($sub) {
+                          $sub->whereNull('cash_type')
+                              ->where('description', 'not like', 'Pengadaan Stok%');
+                      });
+                })
                 ->where(function ($q) use ($shift) {
                     $q->whereNull('order_id')
                       ->orWhereHas('order', fn ($oq) => $oq->where('created_at', '<', $shift->start_time));
