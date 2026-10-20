@@ -52,10 +52,25 @@ class AuthController extends Controller
             }
         }
 
-        $deviceName = $request->input('device_name') ?: 'suitest-client';
+        $deviceName = trim((string) $request->input('device_name'));
+        if (empty($deviceName)) {
+            $deviceName = 'suitest-client';
+        }
 
-        // Hapus token lama dari device yang sama (opsional, biar ga numpuk)
+        // Jika device_name masih memakai nama generik bawaan (FlutterAppDevice / suitest-client),
+        // tambahkan fingerprint unik client (IP + User-Agent) agar device berbeda tidak saling menghapus token
+        if ($deviceName === 'FlutterAppDevice' || $deviceName === 'suitest-client') {
+            $fingerprint = substr(md5($request->ip() . '|' . ($request->userAgent() ?? '')), 0, 8);
+            $deviceName = "{$deviceName}_{$fingerprint}";
+        }
+
+        // Hapus token lama HANYA dari device fisik yang sama (agar tidak menumpuk saat login ulang di HP yang sama)
         $user->tokens()->where('name', $deviceName)->delete();
+
+        // Jaga agar jumlah token aktif per akun wajar (maksimal 10 device aktif)
+        if ($user->tokens()->count() >= 10) {
+            $user->tokens()->oldest()->first()?->delete();
+        }
 
         $token = $user->createToken($deviceName)->plainTextToken;
 
