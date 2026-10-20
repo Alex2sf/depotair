@@ -24,7 +24,8 @@ class Product extends Model
         'price',
         'cogs',
         'description',
-        'is_enabled'
+        'is_enabled',
+        'is_favorite'
     ];
 
     /**
@@ -43,6 +44,7 @@ class Product extends Model
         'price' => 'integer',
         'cogs' => 'integer',
         'is_enabled' => 'boolean',
+        'is_favorite' => 'boolean',
     ];
 
     /**

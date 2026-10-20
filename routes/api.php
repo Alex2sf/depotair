@@ -19,6 +19,7 @@ Route::get('/me', [AuthController::class, 'me'])->middleware('auth:sanctum');
 Route::middleware(['auth:sanctum', 'role:admin,kasir,owner,super_admin'])->group(function () {
     Route::get('/products', [ProductController::class, 'index']);
     Route::post('/products', [ProductController::class, 'store']); // Tambah Produk Baru
+    Route::post('/products/{id}/toggle-favorite', [ProductController::class, 'toggleFavorite']);
     Route::post('/customers/search-or-create', [CustomerController::class, 'searchOrCreate']);
     Route::post('/orders/checkout', [OrderController::class, 'checkout']);
     Route::get('/orders/history', [OrderController::class, 'history']);

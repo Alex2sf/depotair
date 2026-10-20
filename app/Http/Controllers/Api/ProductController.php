@@ -13,6 +13,7 @@ class ProductController extends Controller
     {
         $products = Product::with('inventory')
             ->where('is_enabled', true)
+            ->orderByDesc('is_favorite')
             ->orderBy('name')
             ->get()
             ->map(function ($product) {
@@ -28,6 +29,7 @@ class ProductController extends Controller
                     'sku'           => $product->sku,
                     'stock'         => (int) ($inventory?->quantity ?? 0),
                     'low_stock'     => ($inventory?->quantity ?? 0) <= ($inventory?->low_stock_threshold ?? 10),
+                    'is_favorite'   => (bool) $product->is_favorite,
                 ];
             });
 
@@ -93,6 +95,25 @@ class ProductController extends Controller
             'success' => true,
             'message' => 'Produk berhasil ditambahkan ke sistem!',
             'data' => $product
+        ]);
+    }
+
+    /**
+     * Toggle status favorit produk (Pin to Top untuk kasir)
+     */
+    public function toggleFavorite($id)
+    {
+        $product = Product::findOrFail($id);
+        $product->is_favorite = !$product->is_favorite;
+        $product->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => $product->is_favorite ? 'Produk berhasil ditandai sebagai favorit' : 'Produk dihapus dari favorit',
+            'data' => [
+                'id' => $product->id,
+                'is_favorite' => (bool) $product->is_favorite,
+            ]
         ]);
     }
 }

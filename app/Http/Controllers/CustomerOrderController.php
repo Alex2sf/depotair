@@ -24,7 +24,10 @@ class CustomerOrderController extends Controller
              $query->where('product_type', $request->type);
         }
 
-        $products = $query->with('inventory')->get();
+        $products = $query->with('inventory')
+            ->orderByDesc('is_favorite')
+            ->orderBy('name')
+            ->get();
         $productTypes = \App\Models\ProductType::where('is_active', true)->get();
         return view('customer.home', compact('products', 'productTypes'));
     }
