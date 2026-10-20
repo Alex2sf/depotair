@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\OrderProduct;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Carbon\Carbon;
 
 class CustomerOrderController extends Controller
 {
@@ -243,19 +244,24 @@ class CustomerOrderController extends Controller
             ]);
         }
 
-        // 2. Buat order
-       $order = Order::create([
-        'order_number'     => strtoupper(Str::random(12)),
-        'customer_id'      => $customer->id,
-        'status'           => 'DRAFT',
-        'order_type'       => $request->order_type,
-        'payment_type'     => $request->payment_type,
-        'delivery_address' => $request->order_type === 'DELIVERY' ? $request->address : null,
-        'address_link'     => $request->address_link,
-        'delivery_scheduled_at' => $request->delivery_scheduled_at,
-        'subtotal'         => $subtotal,
-        'total_amount'     => $total,
-        'notes'            => $request->notes,
+        // 2. Buat order: Jika DELIVERY langsung otomatis berstatus READY agar kurir bisa langsung pickup tanpa kasir
+        $isDelivery = $request->order_type === 'DELIVERY';
+        $now = Carbon::now();
+        $completedTargetAt = $isDelivery ? $now->copy()->addMinutes(30) : null;
+
+        $order = Order::create([
+            'order_number'          => strtoupper(Str::random(12)),
+            'customer_id'           => $customer->id,
+            'status'                => $isDelivery ? 'READY' : 'DRAFT',
+            'order_type'            => $request->order_type,
+            'payment_type'          => $request->payment_type,
+            'delivery_address'      => $isDelivery ? $request->address : null,
+            'address_link'          => $request->address_link,
+            'completed_target_at'   => $completedTargetAt,
+            'ready_time'            => $isDelivery ? $now : null,
+            'subtotal'              => $subtotal,
+            'total_amount'          => $total,
+            'notes'                 => $request->notes,
         ]);
 
         // 3. Simpan item ke pivot

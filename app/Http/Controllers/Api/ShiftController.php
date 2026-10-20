@@ -53,9 +53,9 @@ class ShiftController extends Controller
         // Hitung akumulasi real-time selama shift ini berjalan
         $shiftStart = $activeShift->start_time;
 
-        // Total penjualan TUNAI selama shift
+        // Total penjualan TUNAI selama shift (hanya pesanan yang sudah tuntas/COMPLETE)
         $cashSales = (int) \App\Models\Order::where('created_at', '>=', $shiftStart)
-            ->where('status', '!=', 'CANCELLED')
+            ->where('status', 'COMPLETE')
             ->where('payment_type', 'TUNAI')
             ->sum('total_amount');
 
@@ -165,6 +165,34 @@ class ShiftController extends Controller
             ], 403);
         }
 
+        // VALIDASI WAJIB: Seluruh pesanan hari ini wajib berstatus COMPLETE atau CANCELLED sebelum shift bisa ditutup
+        $uncompletedOrders = \App\Models\Order::with('customer')
+            ->whereDate('created_at', today())
+            ->whereNotIn('status', ['COMPLETE', 'CANCELLED'])
+            ->get();
+
+        if ($uncompletedOrders->isNotEmpty()) {
+            $count = $uncompletedOrders->count();
+            $orderNumbers = $uncompletedOrders->pluck('order_number')->take(3)->implode(', ');
+            if ($count > 3) {
+                $orderNumbers .= ', dll';
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => "Tidak bisa tutup shift! Masih ada {$count} pesanan yang belum selesai (#{$orderNumbers}). Seluruh pesanan kurir/hari ini wajib berstatus Selesai (COMPLETE) atau Dibatalkan (CANCEL) sebelum shift dapat ditutup.",
+                'uncompleted_count' => $count,
+                'uncompleted_orders' => $uncompletedOrders->map(fn($o) => [
+                    'order_number' => $o->order_number,
+                    'customer'     => $o->customer?->name ?? 'Pelanggan',
+                    'status'       => is_object($o->status) ? ($o->status->value ?? (string)$o->status) : (string)$o->status,
+                    'order_type'   => is_object($o->order_type) ? ($o->order_type->value ?? (string)$o->order_type) : (string)$o->order_type,
+                    'payment_type' => is_object($o->payment_type) ? ($o->payment_type->value ?? (string)$o->payment_type) : (string)$o->payment_type,
+                    'total_amount' => (int) $o->total_amount,
+                ]),
+            ], 422);
+        }
+
         $endTime = now();
         $actualCash = (int) $request->actual_cash;
 
@@ -172,7 +200,7 @@ class ShiftController extends Controller
             // Hitung final penjualan, pengeluaran & setoran
             $cashSales = (int) \App\Models\Order::where('created_at', '>=', $shift->start_time)
                 ->where('created_at', '<=', $endTime)
-                ->where('status', '!=', 'CANCELLED')
+                ->where('status', 'COMPLETE')
                 ->where('payment_type', 'TUNAI')
                 ->sum('total_amount');
 
