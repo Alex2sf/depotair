@@ -16,6 +16,7 @@ class GeneralJournal extends Model
         'transaction_date' => 'datetime',
         'amount_in' => 'integer',
         'amount_out' => 'integer',
+        'running_balance' => 'integer',
     ];
 
     public function getProofImageUrlAttribute(): ?string

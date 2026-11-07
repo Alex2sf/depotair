@@ -112,6 +112,13 @@ class GeneralJournal extends Page implements HasTable
                     ->sortable()
                     ->summarize(Sum::make()->label('Total Keluar')->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))),
 
+                TextColumn::make('running_balance')
+                    ->label('Saldo Kas')
+                    ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))
+                    ->color(fn ($state) => $state >= 0 ? 'primary' : 'danger')
+                    ->weight('bold')
+                    ->sortable(),
+
                 ImageColumn::make('proof_image')
                     ->label('Bukti')
                     ->disk('public')
@@ -174,10 +181,10 @@ class GeneralJournal extends Page implements HasTable
                         $query = $this->getFilteredSortedTableQuery()?->get()
                             ?? GeneralJournalModel::query()->orderByDesc('transaction_date')->get();
 
-                        $csv = "Tanggal,No Referensi,Kategori,Keterangan,Metode,Masuk,Keluar\n";
+                        $csv = "Tanggal,No Referensi,Kategori,Keterangan,Metode,Masuk,Keluar,Saldo Kas\n";
                         foreach ($query as $row) {
                             $escapedDesc = str_replace('"', '""', $row->description);
-                            $csv .= "{$row->transaction_date},{$row->ref_number},{$row->category},\"{$escapedDesc}\",{$row->payment_method},{$row->amount_in},{$row->amount_out}\n";
+                            $csv .= "{$row->transaction_date},{$row->ref_number},{$row->category},\"{$escapedDesc}\",{$row->payment_method},{$row->amount_in},{$row->amount_out},{$row->running_balance}\n";
                         }
 
                         return response()->streamDownload(function () use ($csv) {
