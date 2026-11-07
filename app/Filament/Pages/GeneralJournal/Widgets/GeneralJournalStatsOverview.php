@@ -16,7 +16,7 @@ class GeneralJournalStatsOverview extends BaseWidget
 
     protected function getColumns(): int
     {
-        return 3;
+        return 4;
     }
 
     protected function getStats(): array
@@ -71,9 +71,6 @@ class GeneralJournalStatsOverview extends BaseWidget
         $saldoBersih = $totalMasuk - $totalKeluar;
         $count = (int) (clone $query)->count();
 
-        $saldoKasir = (int) (\App\Models\CashBalance::where('type', \App\Models\CashBalance::CASHIER)->value('balance') ?? 0);
-        $saldoOwner = (int) (\App\Models\CashBalance::where('type', \App\Models\CashBalance::MAIN)->value('balance') ?? 0);
-
         return [
             Stat::make('Total Pemasukan (Debit)', 'Rp ' . number_format($totalMasuk, 0, ',', '.'))
                 ->description('Uang masuk ' . $periodLabel)
@@ -87,18 +84,8 @@ class GeneralJournalStatsOverview extends BaseWidget
 
             Stat::make('Arus Kas Bersih', 'Rp ' . number_format($saldoBersih, 0, ',', '.'))
                 ->description($saldoBersih >= 0 ? 'Surplus (Masuk > Keluar)' : 'Defisit (Keluar > Masuk)')
-                ->descriptionIcon('heroicon-m-scale')
-                ->color($saldoBersih >= 0 ? 'primary' : 'danger'),
-
-            Stat::make('Saldo Kas Laci (Live)', 'Rp ' . number_format($saldoKasir, 0, ',', '.'))
-                ->description('Fisik uang di laci kasir saat ini')
-                ->descriptionIcon('heroicon-m-inbox-stack')
-                ->color('warning'),
-
-            Stat::make('Saldo Kas Besar (Live)', 'Rp ' . number_format($saldoOwner, 0, ',', '.'))
-                ->description('Kas utama owner & bank')
                 ->descriptionIcon('heroicon-m-banknotes')
-                ->color('info'),
+                ->color($saldoBersih >= 0 ? 'primary' : 'danger'),
 
             Stat::make('Total Transaksi', number_format($count) . ' Baris')
                 ->description('Mutasi jurnal tercatat')
