@@ -22,12 +22,16 @@ class CashierPurchaseController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'category'    => 'required|in:OPERATIONAL',
+            'category'    => 'required|in:OPERATIONAL,STOCK',
             'amount'      => 'required|integer|min:1',
             'description' => 'required|string|max:255',
+            'product_id'  => 'required_if:category,STOCK|nullable|exists:products,id',
+            'quantity'    => 'required_if:category,STOCK|nullable|integer|min:1',
             'proof_image' => 'nullable|image|max:10240', // Maks 10MB foto bukti/nota
         ], [
-            'category.in' => 'Pengeluaran uang laci hanya untuk operasional harian (bensin, es batu, dll). Pengadaan stok barang toko wajib melalui menu Pengajuan Pengadaan Stok.',
+            'category.in'            => 'Kategori pengeluaran laci hanya untuk OPERATIONAL atau STOCK (Beli Galon Kosong).',
+            'product_id.required_if' => 'Produk wajib dipilih untuk pembelian stok galon.',
+            'quantity.required_if'   => 'Jumlah stok galon yang ditambah wajib diisi minimal 1.',
         ]);
 
         $user = $request->user();
@@ -99,16 +103,14 @@ class CashierPurchaseController extends Controller
 
                 // Catat mutasi stok
                 InventoryMovement::create([
-                    'inventory_id'    => $inventory->id,
                     'product_id'      => $productId,
+                    'order_id'        => null,
                     'user_id'         => $user->id,
-                    'type'            => 'in',
                     'quantity_before' => $qtyBefore,
-                    'quantity_after'  => $qtyAfter,
                     'quantity_change' => $quantity,
-                    'reason'          => MovementReason::RESTOCK->value,
-                    'notes'           => "Belanja kasir: {$description} (+{$quantity} {$product?->unit})",
-                    'description'     => "Belanja kasir: {$description}",
+                    'quantity_after'  => $qtyAfter,
+                    'reason'          => MovementReason::RESTOCK,
+                    'notes'           => "Beli galon kasir: {$description} (+{$quantity} {$product?->unit})",
                 ]);
             }
 
