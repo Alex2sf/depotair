@@ -3,7 +3,11 @@
 namespace App\Filament\Pages;
 
 use App\Models\GeneralJournal as GeneralJournalModel;
+use App\Support\BcaStatementExport;
+use Carbon\Carbon;
 use Filament\Actions\Action;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
 use Filament\Pages\Page;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\Summarizers\Sum;
@@ -23,6 +27,14 @@ class GeneralJournal extends Page implements HasTable
     protected static ?string $navigationLabel = 'Jurnal Umum';
     protected static string | \UnitEnum | null $navigationGroup = 'Keuangan';
     protected static ?string $title = 'Jurnal Umum (Buku Kas)';
+
+    public const ACCOUNT_LABELS = [
+        'LACI' => 'Laci Kasir',
+        'KAS_BESAR' => 'Kas Besar',
+        'QRIS' => 'QRIS',
+        'TRANSFER' => 'Transfer',
+        'CORPORATE' => 'Corporate',
+    ];
 
     protected function getHeaderWidgets(): array
     {
@@ -96,6 +108,18 @@ class GeneralJournal extends Page implements HasTable
                         default => 'secondary',
                     }),
 
+                TextColumn::make('account')
+                    ->label('Akun')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => self::ACCOUNT_LABELS[$state] ?? (string) $state)
+                    ->color(fn (?string $state): string => match ($state) {
+                        'LACI' => 'warning',
+                        'KAS_BESAR' => 'danger',
+                        'QRIS' => 'primary',
+                        'TRANSFER' => 'info',
+                        default => 'gray',
+                    }),
+
                 TextColumn::make('amount_in')
                     ->label('Masuk (Debit)')
                     ->formatStateUsing(fn ($state) => $state > 0 ? 'Rp ' . number_format($state, 0, ',', '.') : '-')
@@ -130,6 +154,10 @@ class GeneralJournal extends Page implements HasTable
                         'PEMASUKAN' => 'Uang Masuk (+)',
                         'PENGELUARAN' => 'Uang Keluar (-)',
                     ]),
+
+                SelectFilter::make('account')
+                    ->label('Akun / Rekening')
+                    ->options(self::ACCOUNT_LABELS),
 
                 SelectFilter::make('payment_method')
                     ->label('Metode Pembayaran')
@@ -167,6 +195,38 @@ class GeneralJournal extends Page implements HasTable
                     )),
             ])
             ->headerActions([
+                Action::make('export_bca')
+                    ->label('Export Format BCA')
+                    ->icon('heroicon-o-building-library')
+                    ->color('primary')
+                    ->modalHeading('Export Mutasi Format BCA')
+                    ->modalDescription('Kolom sama dengan CSV mutasi BCA (Tanggal; Jam; Keterangan; Jumlah; CR/DB; Saldo) agar bisa dibandingkan berdampingan.')
+                    ->modalSubmitActionLabel('Download CSV')
+                    ->schema([
+                        Select::make('account')
+                            ->label('Akun')
+                            ->options(BcaStatementExport::ACCOUNTS)
+                            ->default('QRIS')
+                            ->required(),
+                        DatePicker::make('from')
+                            ->label('Dari Tanggal')
+                            ->default(now()->startOfMonth())
+                            ->required(),
+                        DatePicker::make('to')
+                            ->label('Sampai Tanggal')
+                            ->default(now())
+                            ->afterOrEqual('from')
+                            ->required(),
+                    ])
+                    ->action(function (array $data) {
+                        $from = Carbon::parse($data['from']);
+                        $to = Carbon::parse($data['to']);
+                        $csv = BcaStatementExport::toCsv(BcaStatementExport::rows($data['account'], $from, $to));
+                        $name = 'mutasi-' . strtolower($data['account']) . '-' . $from->format('Ymd') . '-' . $to->format('Ymd') . '.csv';
+
+                        return response()->streamDownload(fn () => print($csv), $name, ['Content-Type' => 'text/csv']);
+                    }),
+
                 Action::make('export_csv')
                     ->label('Export CSV')
                     ->icon('heroicon-o-arrow-down-tray')

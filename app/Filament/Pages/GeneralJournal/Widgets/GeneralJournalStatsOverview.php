@@ -62,6 +62,9 @@ class GeneralJournalStatsOverview extends BaseWidget
         if (!empty($this->tableFilters['type']['value'])) {
             $query->where('type', $this->tableFilters['type']['value']);
         }
+        if (!empty($this->tableFilters['account']['value'])) {
+            $query->where('account', $this->tableFilters['account']['value']);
+        }
         if (!empty($this->tableFilters['payment_method']['value'])) {
             $query->where('payment_method', $this->tableFilters['payment_method']['value']);
         }
