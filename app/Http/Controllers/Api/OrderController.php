@@ -40,11 +40,12 @@ class OrderController extends Controller
         
         $query->when($request->search, function ($q) use ($request) {
             $search = $request->search;
-            $q->where('order_number', 'like', "%{$search}%")
+            // Dibungkus satu grup supaya OR pencarian tidak menembus filter status & tanggal
+            $q->where(fn($w) => $w->where('order_number', 'like', "%{$search}%")
               ->orWhereHas('customer', fn($c) =>
                   $c->where('phone_number', 'like', "%{$search}%")
                     ->orWhere('name', 'like', "%{$search}%")
-              );
+              ));
         });
         
         $query->when($request->start_date, fn($q) => $q->whereDate('created_at', '>=', $request->start_date))
@@ -189,6 +190,14 @@ class OrderController extends Controller
         \Log::info('CHECKOUT DIPANGGIL BRO! PAYMENT: ' . $request->payment_type);
         $kasir = $request->user();
 
+        // IDEMPOTENSI: checkout yang dikirim ulang (sync offline / respon hilang) mengembalikan order yang sudah ada
+        if ($request->filled('client_ref')) {
+            $existing = Order::with(['products', 'customer'])->where('client_ref', $request->client_ref)->first();
+            if ($existing) {
+                return $this->checkoutResponse($existing);
+            }
+        }
+
         // GEMBOK PENUH: Cek apakah laci kasir masih terkunci oleh shift kasir sebelumnya
         if (in_array($kasir->role, ['kasir', 'admin'])) {
             $activeShift = \App\Models\CashierShift::where('status', 'OPEN')->latest('id')->first();
@@ -200,7 +209,8 @@ class OrderController extends Controller
             }
         }
 
-        $response = DB::transaction(function () use ($request, $kasir) {
+        try {
+        $order = DB::transaction(function () use ($request, $kasir) {
                 // LOGIC JADWAL ANTER & ESTIMASI
                 $deliveryScheduledAt = null;
                 $completedTargetAt = null;
@@ -216,6 +226,7 @@ class OrderController extends Controller
 
                 // 1. Buat order
                 $order = Order::create([
+                    'client_ref' => $request->client_ref,
                     'customer_id' => $request->customer_id,
                     'staff_id' => $kasir->id,
                     'order_type' => $request->order_type,
@@ -292,26 +303,36 @@ class OrderController extends Controller
                         throw $e;
                     }
                 }
-                return [
-                    'order_number' => $order->order_number,
-                    'total_amount' => $order->total_amount,
-                    'payment_type' => $order->payment_type,
-                    'customer_name' => $order->customer->name ?? 'Pelanggan',
-                    'completed_target_at' => $order->completed_target_at, // Return juga
-                    'items' => $order->products->map(fn($p) => [
-                        'name' => $p->pivot->product_name,
-                        'quantity' => $p->pivot->quantity,
-                        'price' => $p->pivot->price_at_sale,
-                        'subtotal' => $p->pivot->subtotal,
-                    ])->toArray(),
-                ];
+                return $order;
             });
-            return response()->json([
-                'success' => true,
-                'message' => 'Order berhasil + Global Timer active!',
-                'order' => $response
-            ]);
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            // Dua kiriman dengan client_ref sama masuk bersamaan: yang kalah dikembalikan order pemenangnya
+            $order = Order::with(['products', 'customer'])->where('client_ref', $request->client_ref)->firstOrFail();
         }
+
+        return $this->checkoutResponse($order);
+    }
+
+    private function checkoutResponse(Order $order)
+    {
+        return response()->json([
+            'success' => true,
+            'message' => 'Order berhasil + Global Timer active!',
+            'order' => [
+                'order_number' => $order->order_number,
+                'total_amount' => $order->total_amount,
+                'payment_type' => $order->payment_type,
+                'customer_name' => $order->customer->name ?? 'Pelanggan',
+                'completed_target_at' => $order->completed_target_at, // Return juga
+                'items' => $order->products->map(fn($p) => [
+                    'name' => $p->pivot->product_name,
+                    'quantity' => $p->pivot->quantity,
+                    'price' => $p->pivot->price_at_sale,
+                    'subtotal' => $p->pivot->subtotal,
+                ])->toArray(),
+            ],
+        ]);
+    }
     // ==================== KASIR SELESAIKAN PESANAN (PICKUP atau DELIVERY yang belum diambil) ====================
     public function completeOrderManual($order_number, Request $request)
     {
@@ -393,11 +414,33 @@ class OrderController extends Controller
 
             $reason = $request->input('reason', 'Dibatalkan oleh kasir');
 
-            DB::transaction(function () use ($order, $request, $reason) {
+            $error = DB::transaction(function () use ($order, $request, $reason) {
+                // Cek ulang status dengan baris terkunci: pembatalan ganda / kurir pickup bersamaan tidak boleh lolos
+                $lockedStatus = Order::whereKey($order->id)->lockForUpdate()->toBase()->value('status');
+                if ($lockedStatus !== $order->getRawOriginal('status')) {
+                    return 'Status pesanan baru saja berubah (' . $lockedStatus . '). Muat ulang lalu coba lagi.';
+                }
+
                 // 1. Kembalikan stok ke tabel inventories jika status sebelumnya bukan CANCELLED
                 foreach ($order->products as $product) {
-                    Inventory::where('product_id', $product->id)
-                        ->increment('quantity', $product->pivot->quantity);
+                    $inventory = Inventory::where('product_id', $product->id)->lockForUpdate()->first();
+                    if (!$inventory) {
+                        continue;
+                    }
+                    $before = $inventory->quantity;
+                    $qty = (int) $product->pivot->quantity;
+                    $inventory->update(['quantity' => $before + $qty]);
+
+                    \App\Models\InventoryMovement::create([
+                        'product_id'      => $product->id,
+                        'order_id'        => $order->id,
+                        'user_id'         => $request->user()->id,
+                        'quantity_before' => $before,
+                        'quantity_change' => $qty,
+                        'quantity_after'  => $before + $qty,
+                        'reason'          => \App\Enums\MovementReason::RETURN,
+                        'notes'           => "Stok dikembalikan karena order #{$order->order_number} dibatalkan",
+                    ]);
                 }
 
                 // 2. Kalau bayar TUNAI → refund / kurangi dari kas kasir
@@ -422,7 +465,13 @@ class OrderController extends Controller
                     'status' => 'CANCELLED',
                     'notes'  => $existingNotes . "BATAL: {$reason}"
                 ]);
+
+                return null;
             });
+
+            if ($error) {
+                return response()->json(['success' => false, 'message' => $error], 422);
+            }
 
             return response()->json([
                 'success' => true,

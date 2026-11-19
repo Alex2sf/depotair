@@ -275,7 +275,10 @@ class StockProcurementController extends Controller
             return response()->json(['success' => false, 'message' => 'Akses ditolak. Hanya Owner / Admin yang dapat mereview.'], 403);
         }
 
-        $procurement = StockProcurement::with('items.product')->findOrFail($id);
+        // Baris pengajuan dikunci selama review: dua klik/dua perangkat tidak bisa memproses (dan memotong kas) dua kali
+        return DB::transaction(function () use ($request, $user, $id) {
+        $procurement = StockProcurement::lockForUpdate()->findOrFail($id);
+        $procurement->load('items.product');
 
         if ($procurement->status !== 'PENDING') {
             return response()->json([
@@ -300,7 +303,8 @@ class StockProcurementController extends Controller
         }
 
         // AKSI: APPROVE
-        return DB::transaction(function () use ($request, $user, $procurement) {
+            // Semua keputusan dihitung dulu tanpa menulis apa pun; penulisan baru terjadi setelah total & saldo lolos validasi
+            $plans = [];
             $totalApproved = 0;
             $itemsMap = collect($request->items ?? [])->keyBy('item_id');
 
@@ -330,21 +334,8 @@ class StockProcurementController extends Controller
 
                 $subtotalApproved = $isApproved ? ($approvedQty * $approvedUnitCogs) : 0;
 
-                $item->update([
-                    'is_approved'        => $isApproved,
-                    'quantity_approved'  => $isApproved ? $approvedQty : 0,
-                    'unit_cogs_approved' => $approvedUnitCogs,
-                    'subtotal_approved'  => $subtotalApproved,
-                ]);
-
-                if ($isApproved) {
-                    $totalApproved += $subtotalApproved;
-
-                    // Update harga modal cogs di master produk jika owner mengubah harga
-                    if ($approvedUnitCogs > 0 && $approvedUnitCogs !== (int)$item->product->cogs) {
-                        $item->product->update(['cogs' => $approvedUnitCogs]);
-                    }
-                }
+                $plans[] = [$item, $isApproved, $approvedQty, $approvedUnitCogs, $subtotalApproved];
+                $totalApproved += $subtotalApproved;
             }
 
             if ($totalApproved <= 0) {
@@ -355,13 +346,27 @@ class StockProcurementController extends Controller
             }
 
             // POTONG SALDO KAS BESAR (cash_balances.MAIN)
-            $mainBalance = CashBalance::where('type', 'MAIN')->firstOrFail();
+            $mainBalance = CashBalance::where('type', 'MAIN')->lockForUpdate()->firstOrFail();
 
             if ($totalApproved > $mainBalance->balance) {
                 return response()->json([
                     'success' => false,
                     'message' => "Saldo Kas Besar tidak mencukupi! (Saldo: Rp " . number_format($mainBalance->balance, 0, ',', '.') . ", Dibutuhkan: Rp " . number_format($totalApproved, 0, ',', '.') . ")",
                 ], 422);
+            }
+
+            foreach ($plans as [$item, $isApproved, $approvedQty, $approvedUnitCogs, $subtotalApproved]) {
+                $item->update([
+                    'is_approved'        => $isApproved,
+                    'quantity_approved'  => $isApproved ? $approvedQty : 0,
+                    'unit_cogs_approved' => $approvedUnitCogs,
+                    'subtotal_approved'  => $subtotalApproved,
+                ]);
+
+                // Update harga modal cogs di master produk jika owner mengubah harga
+                if ($isApproved && $approvedUnitCogs > 0 && $approvedUnitCogs !== (int)$item->product->cogs) {
+                    $item->product->update(['cogs' => $approvedUnitCogs]);
+                }
             }
 
             // 1. Kurangi Kas Besar
@@ -429,7 +434,17 @@ class StockProcurementController extends Controller
             }
         }
 
-        return DB::transaction(function () use ($procurement, $user, $proofImagePath) {
+        return DB::transaction(function () use ($id, $user, $proofImagePath) {
+            // Cek ulang status dengan baris terkunci: penerimaan ganda tidak boleh menambah stok dua kali
+            $procurement = StockProcurement::lockForUpdate()->findOrFail($id);
+            if ($procurement->status !== 'APPROVED') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Pengajuan ini sudah diproses sebelumnya (Status: ' . $procurement->status . ').',
+                ], 422);
+            }
+            $procurement->load('items.product.inventory');
+
             foreach ($procurement->items as $item) {
                 if (!$item->is_approved || $item->quantity_approved <= 0) {
                     continue;

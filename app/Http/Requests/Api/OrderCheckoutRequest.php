@@ -17,6 +17,7 @@ class OrderCheckoutRequest extends FormRequest
     public function rules()
     {
         return [
+            'client_ref'            => 'nullable|string|max:64',
             'customer_id'           => 'required|exists:customers,id',
             'order_type'            => 'required|in:SELF_PICKUP,DELIVERY',
             'payment_type'          => 'required|in:TUNAI,TRANSFER,QRIS,CORPORATE',

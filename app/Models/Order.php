@@ -22,7 +22,7 @@ class Order extends Model
     protected $table = 'orders';
 
     protected $fillable = [
-        'customer_id', 'staff_id', 'courier_id', 'status', 'order_type', 'payment_type',
+        'client_ref', 'customer_id', 'staff_id', 'courier_id', 'status', 'order_type', 'payment_type',
         'delivery_address', 'address_link','delivery_scheduled_at', 'latitude', 'longitude',
         'subtotal', 'delivery_fee', 'additional_fee', 'total_amount',
         'delivery_time', 'completed_time', 'notes', 'ready_time',

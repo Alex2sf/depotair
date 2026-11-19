@@ -204,6 +204,15 @@ class ShiftController extends Controller
         $actualCash = (int) $request->actual_cash;
 
         return \Illuminate\Support\Facades\DB::transaction(function () use ($shift, $user, $endTime, $actualCash, $request) {
+            // Cek ulang dengan baris terkunci: dua penutupan bersamaan tidak boleh saling menimpa saldo laci
+            $shift = \App\Models\CashierShift::lockForUpdate()->find($shift->id);
+            if (!$shift || $shift->status !== 'OPEN') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Shift ini sudah ditutup sebelumnya.',
+                ], 409);
+            }
+
             // Hitung final penjualan, pengeluaran & setoran
             $cashSales = (int) \App\Models\Order::where('created_at', '>=', $shift->start_time)
                 ->where('created_at', '<=', $endTime)
