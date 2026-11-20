@@ -73,6 +73,14 @@ class CashierShiftsTable
                     ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))
                     ->sortable(),
 
+                TextColumn::make('system_balance_at_close')
+                    ->label('Saldo Laci Sistem')
+                    ->tooltip('Snapshot cash_balances saat tutup shift. Harus sama dengan Uang Seharusnya; kalau beda ada transaksi yang tidak tercatat konsisten.')
+                    ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))
+                    ->color(fn ($state, $record) => $state !== null && (int) $state !== (int) $record->expected_cash ? 'warning' : null)
+                    ->icon(fn ($state, $record) => $state !== null && (int) $state !== (int) $record->expected_cash ? 'heroicon-o-exclamation-triangle' : null)
+                    ->placeholder('-'),
+
                 TextColumn::make('actual_cash')
                     ->label('Uang Fisik Akhir')
                     ->formatStateUsing(fn ($state) => $state !== null ? 'Rp ' . number_format($state, 0, ',', '.') : '-')

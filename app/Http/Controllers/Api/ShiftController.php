@@ -252,6 +252,10 @@ class ShiftController extends Controller
                 $noteText = $noteText ? "{$noteText} ({$handoverInfo})" : $handoverInfo;
             }
 
+            // Snapshot saldo laci di sistem. Saldo TIDAK ditimpa dengan uang fisik: hanya berubah lewat transaksi,
+            // selisih fisik cukup tercatat di kolom difference.
+            $systemBalance = (int) (\App\Models\CashBalance::where('type', 'CASHIER')->lockForUpdate()->value('balance') ?? 0);
+
             // Tutup shift
             $shift->update([
                 'end_time'       => $endTime,
@@ -259,20 +263,12 @@ class ShiftController extends Controller
                 'cash_expenses'  => $cashExpenses,
                 'cash_deposited' => $cashDeposited,
                 'expected_cash'  => $expectedCash,
+                'system_balance_at_close' => $systemBalance,
                 'actual_cash'    => $actualCash,
                 'difference'     => $difference,
                 'notes'          => $noteText,
                 'status'         => 'CLOSED',
             ]);
-
-            // Sesuaikan saldo kas laci kasir di cash_balances agar mencerminkan uang fisik aktual yang ditinggal di laci
-            $cashierBalance = \App\Models\CashBalance::where('type', 'CASHIER')->first();
-            if ($cashierBalance) {
-                $cashierBalance->update([
-                    'balance' => $actualCash,
-                    'last_transaction_at' => $endTime,
-                ]);
-            }
 
             // Kunci: Pastikan SEMUA shift OPEN di toko tertutup bersih (tidak ada yang menggantung lagi)
             \App\Models\CashierShift::where('status', 'OPEN')

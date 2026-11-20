@@ -17,6 +17,7 @@ class CashierShift extends Model
         'cash_expenses',
         'cash_deposited',
         'expected_cash',
+        'system_balance_at_close',
         'actual_cash',
         'difference',
         'notes',
@@ -31,6 +32,7 @@ class CashierShift extends Model
         'cash_expenses'  => 'integer',
         'cash_deposited' => 'integer',
         'expected_cash'  => 'integer',
+        'system_balance_at_close' => 'integer',
         'actual_cash'    => 'integer',
         'difference'     => 'integer',
     ];
