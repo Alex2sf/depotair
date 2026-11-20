@@ -93,8 +93,3 @@ Route::middleware(['auth:sanctum', 'role:admin,kasir,owner'])->group(function ()
     Route::post('/procurements', [\App\Http\Controllers\Api\StockProcurementController::class, 'store']);
     Route::post('/procurements/{id}/receive', [\App\Http\Controllers\Api\StockProcurementController::class, 'receive']);
 });
-
-
-Route::get('/test-checkout-code', action: function () {
-    return "KODE SUDAH UPDATE - " . now();
-});

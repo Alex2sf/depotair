@@ -255,6 +255,46 @@ class CashIntegrityTest extends TestCase
         $this->assertSame(75000, (int) CashBalance::where('type', 'CASHIER')->value('balance'));
     }
 
+    public function test_checkout_with_insufficient_stock_returns_422_without_creating_order(): void
+    {
+        $this->balances(0, 0);
+        $product = $this->product(1);
+        $customer = Customer::forceCreate(['name' => 'Budi', 'phone_number' => '0818']);
+        Sanctum::actingAs($this->user('kasir'));
+
+        $res = $this->postJson('/api/orders/checkout', [
+            'customer_id' => $customer->id, 'order_type' => 'SELF_PICKUP', 'payment_type' => 'TUNAI',
+            'items' => [['product_id' => $product->id, 'quantity' => 5]],
+        ]);
+        $res->assertStatus(422);
+        $this->assertStringContainsString('tidak cukup', $res->json('message'));
+
+        $this->assertSame(0, Order::count());
+        $this->assertSame(0, (int) CashBalance::where('type', 'CASHIER')->value('balance'));
+    }
+
+    public function test_input_validations_reject_bad_values(): void
+    {
+        $this->balances(50000, 0);
+        $product = $this->product(3);
+        $customer = Customer::forceCreate(['name' => 'Budi', 'phone_number' => '0819']);
+        Sanctum::actingAs($this->user('kasir'));
+
+        $this->postJson('/api/orders/checkout', [
+            'customer_id' => $customer->id, 'order_type' => 'DELIVERY', 'payment_type' => 'TUNAI',
+            'delivery_address' => 'Jl. Mawar', 'delivery_scheduled_at' => now()->subDay()->toIso8601String(),
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+        ])->assertStatus(422)->assertJsonValidationErrors('delivery_scheduled_at');
+
+        $this->postJson('/api/cash/deposit-to-main', ['amount' => 0])->assertStatus(422);
+
+        $this->postJson('/api/inventory/adjust', ['product_id' => $product->id, 'quantity' => 5, 'reason' => 'DAMAGE'])
+            ->assertStatus(422);
+        $this->assertSame(3, Inventory::where('product_id', $product->id)->value('quantity'));
+
+        $this->getJson('/api/test-checkout-code')->assertNotFound();
+    }
+
     public function test_second_receive_does_not_add_stock_again(): void
     {
         $product = $this->product(0);

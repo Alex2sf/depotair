@@ -165,14 +165,19 @@ class InventoryController extends Controller
 
         $change = ($direction === 'in') ? $request->quantity : -($request->quantity);
 
-        DB::transaction(function () use ($request, $user, $change, $reason) {
+        $error = DB::transaction(function () use ($request, $user, $change, $reason) {
             $inventory = Inventory::firstOrCreate(
                 ['product_id' => $request->product_id],
                 ['quantity' => 0, 'low_stock_threshold' => 10]
             );
+            $inventory = Inventory::whereKey($inventory->id)->lockForUpdate()->first();
 
             $qtyBefore = $inventory->quantity;
             $qtyAfter  = $qtyBefore + $change;
+
+            if ($qtyAfter < 0) {
+                return "Stok tidak cukup. Stok saat ini {$qtyBefore}, tidak bisa dikurangi " . abs($change) . '.';
+            }
 
             // Update Inventory
             $inventory->update(['quantity' => $qtyAfter]);
@@ -189,7 +194,13 @@ class InventoryController extends Controller
                 'reason'          => $reason->value,
                 'description'     => $request->notes ?? $reason->getLabel(),
             ]);
+
+            return null;
         });
+
+        if ($error) {
+            return response()->json(['success' => false, 'message' => $error], 422);
+        }
 
         return response()->json([
             'success' => true,

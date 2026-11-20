@@ -253,7 +253,10 @@ class OrderController extends Controller
                 foreach ($request->items as $item) {
                     $product = Product::with('inventory')->findOrFail($item['product_id']);
                     if (!$product->is_enabled) {
-                        throw new \Exception("Produk {$product->name} tidak aktif.");
+                        throw new \DomainException("Produk {$product->name} tidak aktif.");
+                    }
+                    if (!$product->inventory) {
+                        throw new \DomainException("Produk {$product->name} belum punya data stok.");
                     }
                     $qty = $item['quantity'];
                     $lineTotal = $product->price * $qty;
@@ -265,7 +268,11 @@ class OrderController extends Controller
                         'cogs_at_sale' => $product->cogs,
                         'subtotal' => $lineTotal,
                     ]);
-                    $product->inventory->deductStock($qty, $order);
+                    try {
+                        $product->inventory->deductStock($qty, $order);
+                    } catch (\DomainException $e) {
+                        throw new \DomainException("{$product->name}: " . $e->getMessage());
+                    }
                 }
                 $order->subtotal = $subtotal;
                 $order->total_amount = $subtotal + ($order->delivery_fee ?? 0) + ($request->additional_fee ?? 0);
@@ -293,6 +300,9 @@ class OrderController extends Controller
         } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
             // Dua kiriman dengan client_ref sama masuk bersamaan: yang kalah dikembalikan order pemenangnya
             $order = Order::with(['products', 'customer'])->where('client_ref', $request->client_ref)->firstOrFail();
+        } catch (\DomainException $e) {
+            // Stok habis / produk nonaktif: pesan jelas untuk kasir, bukan error 500
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
         return $this->checkoutResponse($order);

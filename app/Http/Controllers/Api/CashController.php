@@ -68,7 +68,7 @@ class CashController extends Controller
     public function depositToMain(Request $request)
     {
         $request->validate([
-            'amount'        => 'required|integer|min:0',
+            'amount'        => 'required|integer|min:1',
             'on_behalf_of'  => 'nullable|exists:users,id',
             'notes'         => 'nullable|string|max:200',
             'proof_image'   => 'nullable|image|mimes:jpeg,jpg,png,webp|max:10240',

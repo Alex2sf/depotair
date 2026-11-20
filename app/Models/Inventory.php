@@ -40,7 +40,7 @@ class Inventory extends Model
     public function deductStock(int $quantity, Order $order): void
     {
         if ($this->quantity < $quantity) {
-            throw new \Exception("Stok tidak cukup untuk produk ini.");
+            throw new \DomainException("Stok tidak cukup (sisa {$this->quantity}, diminta {$quantity}).");
         }
 
         $before = $this->quantity;

@@ -24,7 +24,8 @@ class OrderCheckoutRequest extends FormRequest
 
             // INI YANG BENAR & PALING AMAN!
             'delivery_address'      => 'required_if:order_type,DELIVERY|nullable|string|max:500',
-            'delivery_scheduled_at' => 'nullable|date',
+            // Toleransi 15 menit untuk perbedaan jam HP kasir dengan server
+            'delivery_scheduled_at' => 'nullable|date|after_or_equal:-15 minutes',
 
             'delivery_fee'          => 'nullable|numeric|min:0',
             'additional_fee'        => 'nullable|numeric|min:0',
