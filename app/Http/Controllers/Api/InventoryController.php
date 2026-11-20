@@ -17,19 +17,29 @@ class InventoryController extends Controller
         $user = $request->user();
         $notes = $request->notes ?? 'Opname rutin malam';
 
-        DB::transaction(function () use ($request) {
+        DB::transaction(function () use ($request, $user, $notes) {
+            $countedAt = now();
             foreach ($request->opname as $item) {
-                $inventory = Inventory::where('product_id', $item['product_id'])->firstOrFail();
-                
+                $inventory = Inventory::where('product_id', $item['product_id'])->lockForUpdate()->firstOrFail();
+
                 $realQuantityBaru = (int) $item['real_quantity'];
-                
-                // HANYA UPDATE real_quantity dan last_opname_at di tabel Inventory
+
+                // HANYA UPDATE real_quantity dan last_opname_at di tabel Inventory (stok sistem tidak diubah)
                 $inventory->update([
                     'real_quantity'   => $realQuantityBaru,
-                    'last_opname_at'  => now(),
+                    'last_opname_at'  => $countedAt,
                 ]);
-                
-                // !!! BAGIAN PENCATATAN KE InventoryMovement DIHAPUS !!!
+
+                // Riwayat opname: stok sistem saat dihitung vs hitungan fisik
+                \App\Models\StockOpname::create([
+                    'product_id'      => $item['product_id'],
+                    'user_id'         => $user->id,
+                    'system_quantity' => (int) $inventory->quantity,
+                    'real_quantity'   => $realQuantityBaru,
+                    'difference'      => $realQuantityBaru - (int) $inventory->quantity,
+                    'notes'           => $notes,
+                    'counted_at'      => $countedAt,
+                ]);
             }
         });
 
