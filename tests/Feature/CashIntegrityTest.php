@@ -190,6 +190,29 @@ class CashIntegrityTest extends TestCase
         $this->assertSame(1, DB::table('cash_transactions')->where('description', 'like', "Penjualan TUNAI #{$number}%")->count());
     }
 
+    public function test_courier_completion_records_cod_cash(): void
+    {
+        $this->balances(0, 0);
+        $product = $this->product(10);
+        $customer = Customer::forceCreate(['name' => 'Windy', 'phone_number' => '0817']);
+        Sanctum::actingAs($this->user('kasir'));
+
+        $number = $this->postJson('/api/orders/checkout', [
+            'customer_id' => $customer->id, 'order_type' => 'DELIVERY', 'payment_type' => 'TUNAI',
+            'delivery_address' => 'Jl. Melati 2', 'items' => [['product_id' => $product->id, 'quantity' => 1]],
+        ])->json('order.order_number');
+        $this->postJson("/api/orders/{$number}/ready")->assertOk();
+
+        Sanctum::actingAs($kurir = $this->user('kurir'));
+        $this->postJson("/api/courier/orders/{$number}/pickup")->assertOk();
+        $this->post("/api/courier/orders/{$number}/complete", [
+            'image' => \Illuminate\Http\UploadedFile::fake()->image('bukti.jpg'),
+        ], ['Accept' => 'application/json'])->assertOk();
+
+        $this->assertSame(5000, (int) CashBalance::where('type', 'CASHIER')->value('balance'));
+        $this->assertSame($kurir->id, (int) DB::table('cash_transactions')->where('order_id', '>', 0)->value('recorded_by'));
+    }
+
     public function test_cancel_undelivered_cod_does_not_refund_drawer(): void
     {
         $this->balances(30000, 0);
