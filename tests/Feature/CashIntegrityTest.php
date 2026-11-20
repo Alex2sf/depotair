@@ -295,6 +295,17 @@ class CashIntegrityTest extends TestCase
         $this->getJson('/api/test-checkout-code')->assertNotFound();
     }
 
+    public function test_manual_cash_in_with_word_modal_does_not_touch_kas_besar(): void
+    {
+        $this->balances(0, 500000);
+        Sanctum::actingAs($this->user('kasir'));
+
+        $this->postJson('/api/cash/transaction', ['type' => 'DEPOSIT', 'amount' => 100000, 'description' => 'Modal awal kasir'])->assertOk();
+
+        $this->assertSame(100000, (int) CashBalance::where('type', 'CASHIER')->value('balance'));
+        $this->assertSame(500000, (int) CashBalance::where('type', 'MAIN')->value('balance'));
+    }
+
     public function test_second_receive_does_not_add_stock_again(): void
     {
         $product = $this->product(0);

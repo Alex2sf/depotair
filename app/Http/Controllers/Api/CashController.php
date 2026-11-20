@@ -40,10 +40,9 @@ class CashController extends Controller
 
             // LANJUT PROSES SEPERTI BIASA
             if ($type === CashTransaction::TYPE_DEPOSIT) {
+                // Uang masuk manual hanya menambah laci. Kas Besar tidak disentuh;
+                // perpindahan laci <-> Kas Besar hanya lewat Setor ke Kas Besar.
                 CashBalance::where('type', CashBalance::CASHIER)->increment('balance', $amount);
-                if (str_contains(strtolower($request->description), 'modal')) {
-                    CashBalance::where('type', CashBalance::MAIN)->decrement('balance', $amount);
-                }
             } else {
                 // EXPENSE — PASTI AMAN KARENA SUDAH DICEK DI ATAS
                 CashBalance::where('type', CashBalance::CASHIER)->decrement('balance', $amount);
