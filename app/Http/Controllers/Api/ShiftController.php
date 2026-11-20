@@ -53,33 +53,7 @@ class ShiftController extends Controller
         // Hitung akumulasi real-time selama shift ini berjalan
         $shiftStart = $activeShift->start_time;
 
-        // Total penjualan TUNAI selama shift (hanya pesanan yang sudah tuntas/COMPLETE)
-        $cashSales = (int) \App\Models\Order::where('created_at', '>=', $shiftStart)
-            ->where('status', 'COMPLETE')
-            ->where('payment_type', 'TUNAI')
-            ->sum('total_amount');
-
-        // Total pengeluaran kas laci selama shift (khusus kasir/CASHIER, tidak termasuk Pengadaan Kas Besar)
-        $cashExpenses = (int) \App\Models\CashTransaction::where('created_at', '>=', $shiftStart)
-            ->where('type', 'EXPENSE')
-            ->where(function ($q) {
-                $q->where('cash_type', 'CASHIER')
-                  ->orWhere(function ($sub) {
-                      $sub->whereNull('cash_type')
-                          ->where('description', 'not like', 'Pengadaan Stok%');
-                  });
-            })
-            ->where(function ($q) use ($shiftStart) {
-                $q->whereNull('order_id')
-                  ->orWhereHas('order', fn ($oq) => $oq->where('created_at', '<', $shiftStart));
-            })
-            ->sum('amount');
-
-        // Total setoran ke kas besar selama shift
-        $cashDeposited = (int) \App\Models\CashTransaction::where('created_at', '>=', $shiftStart)
-            ->where('type', 'DEPOSIT')
-            ->where('description', 'like', '%Setor ke kas besar%')
-            ->sum('amount');
+        [$cashSales, $cashExpenses, $cashDeposited] = $this->drawerTotals($shiftStart, null);
 
         $expectedCash = $activeShift->starting_cash + $cashSales - $cashExpenses - $cashDeposited;
 
@@ -214,33 +188,7 @@ class ShiftController extends Controller
             }
 
             // Hitung final penjualan, pengeluaran & setoran
-            $cashSales = (int) \App\Models\Order::where('created_at', '>=', $shift->start_time)
-                ->where('created_at', '<=', $endTime)
-                ->where('status', 'COMPLETE')
-                ->where('payment_type', 'TUNAI')
-                ->sum('total_amount');
-
-            $cashExpenses = (int) \App\Models\CashTransaction::where('created_at', '>=', $shift->start_time)
-                ->where('created_at', '<=', $endTime)
-                ->where('type', 'EXPENSE')
-                ->where(function ($q) {
-                    $q->where('cash_type', 'CASHIER')
-                      ->orWhere(function ($sub) {
-                          $sub->whereNull('cash_type')
-                              ->where('description', 'not like', 'Pengadaan Stok%');
-                      });
-                })
-                ->where(function ($q) use ($shift) {
-                    $q->whereNull('order_id')
-                      ->orWhereHas('order', fn ($oq) => $oq->where('created_at', '<', $shift->start_time));
-                })
-                ->sum('amount');
-
-            $cashDeposited = (int) \App\Models\CashTransaction::where('created_at', '>=', $shift->start_time)
-                ->where('created_at', '<=', $endTime)
-                ->where('type', 'DEPOSIT')
-                ->where('description', 'like', '%Setor ke kas besar%')
-                ->sum('amount');
+            [$cashSales, $cashExpenses, $cashDeposited] = $this->drawerTotals($shift->start_time, $endTime);
 
             $expectedCash = $shift->starting_cash + $cashSales - $cashExpenses - $cashDeposited;
             $difference = $actualCash - $expectedCash;
@@ -297,6 +245,24 @@ class ShiftController extends Controller
                 ],
             ]);
         });
+    }
+
+    /**
+     * Total mutasi uang fisik laci (cash_type CASHIER) dalam rentang shift, sama seperti Buku Kas Laci,
+     * supaya expected_cash selalu sama dengan perubahan cash_balances:
+     * [uang masuk (penjualan tunai, COD diterima, modal), uang keluar (belanja, batal), setor ke kas besar].
+     */
+    private function drawerTotals($from, $to): array
+    {
+        $base = fn () => \App\Models\CashTransaction::where('cash_type', 'CASHIER')
+            ->where('created_at', '>=', $from)
+            ->when($to, fn ($q) => $q->where('created_at', '<=', $to));
+
+        $in = (int) $base()->where('type', 'DEPOSIT')->where('description', 'not like', 'Setor ke kas besar%')->sum('amount');
+        $out = (int) $base()->where('type', 'EXPENSE')->sum('amount');
+        $deposited = (int) $base()->where('type', 'DEPOSIT')->where('description', 'like', 'Setor ke kas besar%')->sum('amount');
+
+        return [$in, $out, $deposited];
     }
 
     /**

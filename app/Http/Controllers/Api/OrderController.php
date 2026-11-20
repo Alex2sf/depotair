@@ -284,24 +284,9 @@ class OrderController extends Controller
                 $order = Order::with(['products', 'customer'])->findOrFail($order->id);
                 \Log::info('ORDER FINAL - ID: ' . $order->id . ' | NOMOR: ' . $order->order_number);
     
-               // TUNAI MASUK KAS OTOMATIS + DEBUG LEVEL DEWA
-                if (($order->payment_type->value ?? '') === 'TUNAI') {
-                    $saldoSebelum = CashBalance::where('type', CashBalance::CASHIER)->first()->balance ?? 0;
-                    CashBalance::where('type', CashBalance::CASHIER)
-                        ->increment('balance', $order->total_amount);
-                    $saldoSesudah = CashBalance::where('type', CashBalance::CASHIER)->first()->balance ?? 0;
-                    try {
-                        $cash = CashTransaction::create([
-                            'type' => CashTransaction::TYPE_DEPOSIT,
-                            'cash_type' => 'CASHIER',
-                            'amount' => $order->total_amount,
-                            'description' => "Penjualan TUNAI #{$order->order_number}",
-                            'recorded_by' => $kasir->id,
-                            'order_id' => $order->id,
-                        ]);
-                    } catch (\Exception $e) {
-                        throw $e;
-                    }
+               // TUNAI MASUK LACI: ambil sendiri langsung; pesanan antar (COD) baru masuk saat pesanan selesai
+                if (($order->payment_type->value ?? '') === 'TUNAI' && !\App\Support\CashDrawer::isCashDelivery($order)) {
+                    \App\Support\CashDrawer::recordSale($order, $kasir->id);
                 }
                 return $order;
             });
@@ -445,7 +430,8 @@ class OrderController extends Controller
 
                 // 2. Kalau bayar TUNAI → refund / kurangi dari kas kasir
                 $paymentType = is_object($order->payment_type) ? ($order->payment_type->value ?? '') : (string)$order->payment_type;
-                if (strtoupper($paymentType) === 'TUNAI') {
+                // Hanya kembalikan uang kalau uangnya memang sudah masuk laci (COD yang belum selesai belum masuk)
+                if (strtoupper($paymentType) === 'TUNAI' && \App\Support\CashDrawer::hasSale($order)) {
                     CashBalance::where('type', CashBalance::CASHIER)
                         ->decrement('balance', $order->total_amount);
 

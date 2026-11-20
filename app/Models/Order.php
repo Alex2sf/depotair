@@ -99,6 +99,16 @@ class Order extends Model
     {
         parent::boot();
 
+        // COD: uang tunai pesanan antar masuk laci saat pesanan selesai, dari jalur mana pun
+        // (kurir, kasir manual, bulk owner, atau form admin)
+        static::updated(function ($order) {
+            if ($order->wasChanged('status')
+                && ($order->status->value ?? $order->status) === 'COMPLETE'
+                && \App\Support\CashDrawer::isCashDelivery($order)) {
+                \App\Support\CashDrawer::recordSale($order, auth()->id() ?? $order->courier_id ?? $order->staff_id);
+            }
+        });
+
         static::created(function ($order) {
             if (empty($order->order_number)) {
                 $order->order_number = 'ORD' . now()->format('Ymd') . str_pad($order->id, 6, '0', STR_PAD_LEFT);

@@ -167,6 +167,71 @@ class CashIntegrityTest extends TestCase
         $this->assertSame(5000, (int) CashBalance::where('type', 'CASHIER')->value('balance'));
     }
 
+    public function test_cod_cash_enters_drawer_only_when_delivery_completes(): void
+    {
+        $this->balances(0, 0);
+        $kasir = $this->user('kasir');
+        $product = $this->product(10);
+        $customer = Customer::forceCreate(['name' => 'Wiyono', 'phone_number' => '0814']);
+        Sanctum::actingAs($kasir);
+
+        $number = $this->postJson('/api/orders/checkout', [
+            'customer_id' => $customer->id, 'order_type' => 'DELIVERY', 'payment_type' => 'TUNAI',
+            'delivery_address' => 'Jl. Mawar 1', 'items' => [['product_id' => $product->id, 'quantity' => 2]],
+        ])->assertOk()->json('order.order_number');
+
+        $this->assertSame(0, (int) CashBalance::where('type', 'CASHIER')->value('balance'));
+
+        $this->postJson("/api/orders/{$number}/ready")->assertOk();
+        $this->postJson("/api/orders/{$number}/complete")->assertOk();
+        $this->postJson("/api/orders/{$number}/complete")->assertStatus(404);
+
+        $this->assertSame(10000, (int) CashBalance::where('type', 'CASHIER')->value('balance'));
+        $this->assertSame(1, DB::table('cash_transactions')->where('description', 'like', "Penjualan TUNAI #{$number}%")->count());
+    }
+
+    public function test_cancel_undelivered_cod_does_not_refund_drawer(): void
+    {
+        $this->balances(30000, 0);
+        $kasir = $this->user('kasir');
+        $product = $this->product(10);
+        $customer = Customer::forceCreate(['name' => 'Wiyono', 'phone_number' => '0815']);
+        Sanctum::actingAs($kasir);
+
+        $number = $this->postJson('/api/orders/checkout', [
+            'customer_id' => $customer->id, 'order_type' => 'DELIVERY', 'payment_type' => 'TUNAI',
+            'delivery_address' => 'Jl. Mawar 1', 'items' => [['product_id' => $product->id, 'quantity' => 1]],
+        ])->json('order.order_number');
+
+        $this->postJson("/api/orders/{$number}/cancel")->assertOk();
+
+        $this->assertSame(30000, (int) CashBalance::where('type', 'CASHIER')->value('balance'));
+        $this->assertSame(10, Inventory::where('product_id', $product->id)->value('quantity'));
+    }
+
+    public function test_shift_expected_cash_matches_drawer_balance(): void
+    {
+        $this->balances(0, 0);
+        $kasir = $this->user('kasir');
+        $product = $this->product(10);
+        $customer = Customer::forceCreate(['name' => 'Budi', 'phone_number' => '0816']);
+        Sanctum::actingAs($kasir);
+
+        $this->getJson('/api/shifts/current')->assertOk();
+        $this->postJson('/api/cash/transaction', ['type' => 'DEPOSIT', 'amount' => 100000, 'description' => 'Modal awal kasir'])->assertOk();
+        $this->postJson('/api/orders/checkout', [
+            'customer_id' => $customer->id, 'order_type' => 'SELF_PICKUP', 'payment_type' => 'TUNAI',
+            'items' => [['product_id' => $product->id, 'quantity' => 3]],
+        ])->assertOk();
+        $this->postJson('/api/cash/deposit-to-main', ['amount' => 40000])->assertOk();
+
+        $data = $this->postJson('/api/shifts/close', ['actual_cash' => 75000])->assertOk()->json('data');
+
+        $this->assertSame(75000, $data['expected_cash']);
+        $this->assertSame(75000, (int) DB::table('cashier_shifts')->value('system_balance_at_close'));
+        $this->assertSame(75000, (int) CashBalance::where('type', 'CASHIER')->value('balance'));
+    }
+
     public function test_second_receive_does_not_add_stock_again(): void
     {
         $product = $this->product(0);
