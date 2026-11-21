@@ -17,10 +17,10 @@ class StockCardTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function product(int $stock): Product
+    private function product(int $stock, string $name = 'Galon'): Product
     {
         $product = Product::forceCreate([
-            'name' => 'Galon', 'sku' => uniqid('SKU'), 'image_url' => '-', 'product_type' => 'REFILL',
+            'name' => $name, 'sku' => uniqid('SKU'), 'image_url' => '-', 'product_type' => 'REFILL',
             'unit' => 'pcs', 'price' => 5000, 'cogs' => 1000, 'is_enabled' => true,
         ]);
         Inventory::updateOrCreate(['product_id' => $product->id], ['quantity' => $stock, 'low_stock_threshold' => 1]);
@@ -80,5 +80,51 @@ class StockCardTest extends TestCase
         $this->actingAs($owner);
 
         \Livewire\Livewire::test(StockCardReport::class)->assertSuccessful()->assertSee('Galon');
+    }
+
+    private function owner(): User
+    {
+        $owner = User::factory()->create();
+        $owner->forceFill(['role' => 'owner'])->save();
+        return $owner;
+    }
+
+    public function test_page_flags_history_gap_and_filters_issues_and_search(): void
+    {
+        $ok = $this->product(10, 'Produk Cocok');
+        $this->move($ok, 0, 10, 'RESTOCK', now()->subDay()->toDateTimeString());
+
+        // Riwayat hanya sampai 3, tapi stok sistem 5: riwayat kurang 2
+        $gap = $this->product(5, 'Produk Beda');
+        $this->move($gap, 0, 3, 'RESTOCK', now()->subDay()->toDateTimeString());
+
+        $this->actingAs($this->owner());
+        $page = \Livewire\Livewire::test(StockCardReport::class);
+
+        $page->assertSee('Produk Cocok')->assertSee('Produk Beda')->assertSee('Riwayat kurang 2');
+        $this->assertSame(1, $page->instance()->summary['history_gap']);
+        $this->assertSame(2, $page->instance()->summary['products']);
+
+        $page->set('onlyIssues', true)->assertSee('Produk Beda')->assertDontSee('Produk Cocok');
+        $page->set('onlyIssues', false)->set('search', 'cocok')->assertSee('Produk Cocok')->assertDontSee('Produk Beda');
+        $page->set('search', 'tidak ada')->assertSee('Tidak ada produk yang cocok');
+    }
+
+    public function test_presets_set_date_ranges_and_history_check_only_applies_to_periods_ending_today(): void
+    {
+        $gap = $this->product(5, 'Produk Beda');
+        $this->move($gap, 0, 3, 'RESTOCK', now()->subDay()->toDateTimeString());
+        $this->actingAs($this->owner());
+
+        $page = \Livewire\Livewire::test(StockCardReport::class);
+        $page->call('setPreset', 'today')->assertSet('from', now()->toDateString())->assertSet('to', now()->toDateString());
+        $page->call('setPreset', 'week')->assertSet('from', now()->subDays(6)->toDateString());
+
+        $page->call('setPreset', 'lastmonth')
+            ->assertSet('to', now()->subMonthNoOverflow()->endOfMonth()->toDateString())
+            ->assertSet('preset', 'lastmonth');
+        $this->assertSame(0, $page->instance()->summary['history_gap']);
+
+        $page->set('from', now()->subDays(3)->toDateString())->assertSet('preset', '');
     }
 }
