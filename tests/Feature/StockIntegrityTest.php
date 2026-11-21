@@ -105,6 +105,24 @@ class StockIntegrityTest extends TestCase
         $this->assertSame('Koreksi opname 22/11', $movement->notes);
     }
 
+    public function test_admin_edit_of_stock_is_logged_as_adjustment(): void
+    {
+        $p = $this->product(19);
+        $owner = $this->user('owner');
+        \Spatie\Permission\Models\Role::findOrCreate('super_admin', 'web');
+        $owner->assignRole('super_admin');
+        $this->actingAs($owner);
+        $inventory = Inventory::where('product_id', $p->id)->first();
+
+        \Livewire\Livewire::test(\App\Filament\Resources\Inventories\Pages\EditInventory::class, ['record' => $inventory->getRouteKey()])
+            ->fillForm(['quantity' => 15])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame(15, $inventory->fresh()->quantity);
+        $this->assertSame(-4, (int) InventoryMovement::where('reason', 'ADJUSTMENT')->value('quantity_change'));
+    }
+
     public function test_movement_history_is_read_only_in_admin(): void
     {
         $p = $this->product(5);

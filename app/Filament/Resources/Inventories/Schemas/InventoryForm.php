@@ -26,11 +26,9 @@ class InventoryForm
                 ->required()
                 ->minValue(0)
                 ->default(0)
-                // Saat edit tidak bisa diubah langsung: pakai tombol "Sesuaikan stok" supaya tercatat di riwayat
-                ->disabledOn('edit')
-                ->dehydrated(fn (string $operation) => $operation === 'create')
+                // Perubahan angka ini otomatis dicatat sebagai riwayat stok (lihat CreateInventory / EditInventory)
                 ->helperText(fn (string $operation) => $operation === 'edit'
-                    ? 'Ubah lewat tombol "Sesuaikan stok" di daftar Inventories supaya tercatat di Kartu Stok.'
+                    ? 'Perubahan otomatis dicatat sebagai Penyesuaian di Kartu Stok.'
                     : 'Stok awal. Dicatat sebagai riwayat stok masuk.'),
 
             TextInput::make('real_quantity')
