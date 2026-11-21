@@ -86,12 +86,7 @@ class ProductController extends Controller
 
         // Simpan Inventory Awal (Wajib ada biar muncul di stok)
         // Kita gunakan create() manual atau relation
-        \App\Models\Inventory::create([
-            'product_id' => $product->id,
-            'quantity' => 0,
-            'low_stock_threshold' => 10,
-        ]);
-
+        // Baris inventori (stok 0) dibuat otomatis oleh Product::created.
         // Stok awal dicatat sebagai riwayat stok masuk supaya Kartu Stok bisa merunutnya
         if ((int) ($request->initial_stock ?? 0) > 0) {
             \App\Support\StockAdjuster::setTo($product->id, (int) $request->initial_stock, $request->user()?->id, 'Stok awal produk baru', \App\Enums\MovementReason::RESTOCK);

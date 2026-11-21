@@ -25,7 +25,7 @@ class StockIntegrityTest extends TestCase
             'name' => 'Galon', 'sku' => uniqid('SKU'), 'image_url' => '-', 'product_type' => 'REFILL',
             'unit' => 'pcs', 'price' => 5000, 'cogs' => 1000, 'is_enabled' => true,
         ]);
-        Inventory::forceCreate(['product_id' => $product->id, 'quantity' => $stock, 'low_stock_threshold' => 1]);
+        Inventory::updateOrCreate(['product_id' => $product->id], ['quantity' => $stock, 'low_stock_threshold' => 1]);
         return $product;
     }
 
@@ -121,6 +121,35 @@ class StockIntegrityTest extends TestCase
 
         $this->assertSame(15, $inventory->fresh()->quantity);
         $this->assertSame(-4, (int) InventoryMovement::where('reason', 'ADJUSTMENT')->value('quantity_change'));
+    }
+
+    public function test_every_new_product_gets_an_inventory_row_with_zero_stock(): void
+    {
+        $product = Product::forceCreate([
+            'name' => 'Kanebo', 'sku' => 'KNB-1', 'image_url' => '-', 'product_type' => 'CONSUMABLE',
+            'unit' => 'pcs', 'price' => 1000, 'cogs' => 500, 'is_enabled' => true,
+        ]);
+
+        $inventory = Inventory::where('product_id', $product->id)->first();
+        $this->assertNotNull($inventory);
+        $this->assertSame(0, $inventory->quantity);
+        $this->assertSame(0, $inventory->real_quantity);
+    }
+
+    public function test_backfill_migration_creates_missing_inventory_only(): void
+    {
+        $withStock = $this->product(7);
+        $orphan = Product::forceCreate([
+            'name' => 'Tanpa Stok', 'sku' => 'ORPHAN', 'image_url' => '-', 'product_type' => 'CONSUMABLE',
+            'unit' => 'pcs', 'price' => 1000, 'cogs' => 500, 'is_enabled' => true,
+        ]);
+        Inventory::where('product_id', $orphan->id)->delete();
+
+        (require base_path('database/migrations/2026_11_22_100000_backfill_missing_inventories.php'))->up();
+
+        $this->assertSame(0, Inventory::where('product_id', $orphan->id)->value('quantity'));
+        $this->assertSame(7, Inventory::where('product_id', $withStock->id)->value('quantity'));
+        $this->assertSame(1, Inventory::where('product_id', $orphan->id)->count());
     }
 
     public function test_movement_history_is_read_only_in_admin(): void

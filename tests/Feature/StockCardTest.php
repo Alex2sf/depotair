@@ -23,7 +23,7 @@ class StockCardTest extends TestCase
             'name' => 'Galon', 'sku' => uniqid('SKU'), 'image_url' => '-', 'product_type' => 'REFILL',
             'unit' => 'pcs', 'price' => 5000, 'cogs' => 1000, 'is_enabled' => true,
         ]);
-        Inventory::forceCreate(['product_id' => $product->id, 'quantity' => $stock, 'low_stock_threshold' => 1]);
+        Inventory::updateOrCreate(['product_id' => $product->id], ['quantity' => $stock, 'low_stock_threshold' => 1]);
         return $product;
     }
 

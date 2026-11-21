@@ -47,6 +47,18 @@ class Product extends Model
         'is_favorite' => 'boolean',
     ];
 
+    // Setiap produk baru (dari Filament, app, import, atau jalur lain) otomatis punya baris inventori dengan stok 0,
+    // supaya muncul di menu Inventories, bisa dijual, dan bisa di-opname.
+    protected static function booted(): void
+    {
+        static::created(function (Product $product) {
+            Inventory::firstOrCreate(
+                ['product_id' => $product->id],
+                ['quantity' => 0, 'real_quantity' => 0, 'low_stock_threshold' => 10]
+            );
+        });
+    }
+
     /**
      * Relasi ke master Tipe/Kategori Produk
      */
