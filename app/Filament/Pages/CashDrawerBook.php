@@ -81,7 +81,8 @@ class CashDrawerBook extends Page implements HasTable
                     ->label('Sesuaikan ke uang fisik')
                     ->icon('heroicon-o-scale')
                     ->color('warning')
-                    ->visible(fn () => in_array(auth()->user()?->role, ['owner', 'admin', 'super_admin']))
+                    ->visible(fn () => in_array(auth()->user()?->role, ['owner', 'admin', 'super_admin'])
+                        || (auth()->user()?->hasRole('super_admin') ?? false))
                     ->modalHeading('Sesuaikan saldo laci ke uang fisik')
                     ->modalDescription('Hitung semua uang di laci saat tidak ada transaksi. Selisih dengan saldo buku dicatat sebagai satu transaksi penyesuaian, lalu saldo buku dan saldo sistem sama-sama menjadi uang fisik ini.')
                     ->schema([
