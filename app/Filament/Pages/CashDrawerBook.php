@@ -37,6 +37,34 @@ class CashDrawerBook extends Page implements HasTable
         return ['book' => $book, 'system' => $system, 'difference' => $system - $book];
     }
 
+    /**
+     * Samakan saldo buku dan saldo sistem dengan uang fisik hasil hitung.
+     * Selisih buku dicatat sebagai satu transaksi penyesuaian (ada jejaknya), lalu cash_balances diset ke uang fisik.
+     */
+    public static function adjustToCounted(int $counted, int $userId, ?string $note = null): array
+    {
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($counted, $userId, $note) {
+            $balance = CashBalance::where('type', CashBalance::CASHIER)->lockForUpdate()->firstOrFail();
+            $book = self::reconciliation()['book'];
+            $delta = $counted - $book;
+
+            if ($delta !== 0) {
+                \App\Models\CashTransaction::create([
+                    'type'        => $delta > 0 ? \App\Models\CashTransaction::TYPE_DEPOSIT : \App\Models\CashTransaction::TYPE_EXPENSE,
+                    'cash_type'   => 'CASHIER',
+                    'amount'      => abs($delta),
+                    'description' => 'Penyesuaian saldo laci ke uang fisik ' . self::rupiah($counted) . ($note ? ": {$note}" : ''),
+                    'recorded_by' => $userId,
+                ]);
+            }
+
+            $previousSystem = (int) $balance->balance;
+            $balance->update(['balance' => $counted, 'last_transaction_at' => now()]);
+
+            return ['book_before' => $book, 'system_before' => $previousSystem, 'counted' => $counted, 'adjustment' => $delta];
+        });
+    }
+
     public function table(Table $table): Table
     {
         $r = self::reconciliation();
@@ -48,6 +76,35 @@ class CashDrawerBook extends Page implements HasTable
             ->heading('Saldo buku: ' . self::rupiah($r['book']))
             ->description($status)
             ->query(CashDrawerLedger::query()->with('recordedBy'))
+            ->headerActions([
+                \Filament\Actions\Action::make('adjust_to_counted')
+                    ->label('Sesuaikan ke uang fisik')
+                    ->icon('heroicon-o-scale')
+                    ->color('warning')
+                    ->visible(fn () => in_array(auth()->user()?->role, ['owner', 'admin', 'super_admin']))
+                    ->modalHeading('Sesuaikan saldo laci ke uang fisik')
+                    ->modalDescription('Hitung semua uang di laci saat tidak ada transaksi. Selisih dengan saldo buku dicatat sebagai satu transaksi penyesuaian, lalu saldo buku dan saldo sistem sama-sama menjadi uang fisik ini.')
+                    ->schema([
+                        \Filament\Forms\Components\TextInput::make('counted')
+                            ->label('Uang fisik di laci (Rp)')
+                            ->numeric()
+                            ->minValue(0)
+                            ->required(),
+                        \Filament\Forms\Components\TextInput::make('note')
+                            ->label('Catatan')
+                            ->placeholder('Patok saldo awal / opname kas 22/11')
+                            ->maxLength(200),
+                    ])
+                    ->requiresConfirmation()
+                    ->action(function (array $data) {
+                        $result = self::adjustToCounted((int) $data['counted'], (int) auth()->id(), $data['note'] ?? null);
+                        \Filament\Notifications\Notification::make()
+                            ->title('Saldo laci disesuaikan ke ' . self::rupiah($result['counted']))
+                            ->body('Penyesuaian buku: ' . self::rupiah($result['adjustment']) . ' · saldo sistem sebelumnya: ' . self::rupiah($result['system_before']))
+                            ->success()
+                            ->send();
+                    }),
+            ])
             ->defaultSort(fn ($query) => $query->orderByDesc('transaction_date')->orderByDesc('id'))
             ->columns([
                 TextColumn::make('transaction_date')

@@ -62,6 +62,32 @@ class CashDrawerBookTest extends TestCase
         $this->assertSame(55000, (int) DB::table('cashier_shifts')->value('system_balance_at_close'));
     }
 
+    public function test_owner_adjusts_book_and_system_to_counted_cash(): void
+    {
+        $this->tx('DEPOSIT', 'CASHIER', 9821499, 'Penjualan TUNAI #ORD1', '2026-11-01 08:00:00');
+        CashBalance::updateOrCreate(['type' => 'CASHIER'], ['balance' => 6713000]);
+        $owner = User::factory()->create();
+        $owner->forceFill(['role' => 'owner'])->save();
+        $this->actingAs($owner);
+
+        \Livewire\Livewire::test(CashDrawerBook::class)
+            ->callTableAction('adjust_to_counted', data: ['counted' => 6700000, 'note' => 'Patok saldo awal'])
+            ->assertHasNoTableActionErrors();
+
+        $this->assertSame(['book' => 6700000, 'system' => 6700000, 'difference' => 0], CashDrawerBook::reconciliation());
+        $this->assertSame(3121499, (int) DB::table('cash_transactions')->where('description', 'like', 'Penyesuaian saldo laci%')->value('amount'));
+    }
+
+    public function test_adjust_action_hidden_for_kasir(): void
+    {
+        CashBalance::updateOrCreate(['type' => 'CASHIER'], ['balance' => 0]);
+        $kasir = User::factory()->create();
+        $kasir->forceFill(['role' => 'kasir'])->save();
+        $this->actingAs($kasir);
+
+        \Livewire\Livewire::test(CashDrawerBook::class)->assertTableActionHidden('adjust_to_counted');
+    }
+
     public function test_page_renders_for_owner(): void
     {
         CashBalance::updateOrCreate(['type' => 'CASHIER'], ['balance' => 0]);
