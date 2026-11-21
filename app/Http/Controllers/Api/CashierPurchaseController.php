@@ -91,6 +91,7 @@ class CashierPurchaseController extends Controller
                     ['product_id' => $productId],
                     ['quantity' => 0, 'low_stock_threshold' => 10]
                 );
+                $inventory = Inventory::whereKey($inventory->id)->lockForUpdate()->first();
 
                 $qtyBefore = $inventory->quantity;
                 $qtyAfter = $qtyBefore + $quantity;

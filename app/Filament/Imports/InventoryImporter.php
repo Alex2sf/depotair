@@ -41,6 +41,22 @@ class InventoryImporter extends Importer
         return new Inventory();
     }
 
+    private int $initialStock = 0;
+
+    // Stok hasil import dicatat lewat riwayat gerakan stok, bukan ditulis langsung
+    protected function beforeCreate(): void
+    {
+        $this->initialStock = (int) $this->record->quantity;
+        $this->record->quantity = 0;
+    }
+
+    protected function afterCreate(): void
+    {
+        if ($this->initialStock > 0) {
+            \App\Support\StockAdjuster::setTo($this->record->product_id, $this->initialStock, $this->import->user_id, 'Stok awal (import)', \App\Enums\MovementReason::RESTOCK);
+        }
+    }
+
     public static function getCompletedNotificationBody(Import $import): string
     {
         $body = 'Your inventory import has completed and ' . Number::format($import->successful_rows) . ' ' . str('row')->plural($import->successful_rows) . ' imported.';

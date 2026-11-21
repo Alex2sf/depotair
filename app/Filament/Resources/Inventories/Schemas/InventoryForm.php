@@ -24,8 +24,14 @@ class InventoryForm
                 ->label('Stok Sistem')
                 ->numeric()
                 ->required()
+                ->minValue(0)
                 ->default(0)
-                ->helperText('Stok yang tercatat di sistem (otomatis dari transaksi)'),
+                // Saat edit tidak bisa diubah langsung: pakai tombol "Sesuaikan stok" supaya tercatat di riwayat
+                ->disabledOn('edit')
+                ->dehydrated(fn (string $operation) => $operation === 'create')
+                ->helperText(fn (string $operation) => $operation === 'edit'
+                    ? 'Ubah lewat tombol "Sesuaikan stok" di daftar Inventories supaya tercatat di Kartu Stok.'
+                    : 'Stok awal. Dicatat sebagai riwayat stok masuk.'),
 
             TextInput::make('real_quantity')
                 ->label('Stok Fisik (Opname)')

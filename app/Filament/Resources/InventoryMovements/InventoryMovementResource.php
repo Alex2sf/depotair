@@ -57,4 +57,26 @@ class InventoryMovementResource extends Resource
             'edit' => EditInventoryMovement::route('/{record}/edit'),
         ];
     }
+
+    // Riwayat stok hanya-baca: mengedit/menghapus baris lama akan mengacak angka stok sekarang.
+    // Koreksi stok lewat tombol "Sesuaikan stok" di Inventories.
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+
+    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return false;
+    }
+
+    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return false;
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return false;
+    }
 }

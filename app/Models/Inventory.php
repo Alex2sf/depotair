@@ -39,6 +39,10 @@ class Inventory extends Model
     // Method deductStock (update: ga pake user_id, set null aja biar sesuai permintaan lo)
     public function deductStock(int $quantity, Order $order): void
     {
+        // Baca ulang dengan kunci baris: dua penjualan bersamaan tidak boleh memakai angka stok yang sama
+        static::whereKey($this->id)->lockForUpdate()->first();
+        $this->refresh();
+
         if ($this->quantity < $quantity) {
             throw new \DomainException("Stok tidak cukup (sisa {$this->quantity}, diminta {$quantity}).");
         }

@@ -6,7 +6,9 @@ use App\Models\Product;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderProduct;
+use App\Models\Inventory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
@@ -252,32 +254,52 @@ class CustomerOrderController extends Controller
         $now = Carbon::now();
         $completedTargetAt = $isDelivery ? $now->copy()->addMinutes(30) : null;
 
-        $order = Order::create([
-            'order_number'          => strtoupper(Str::random(12)),
-            'customer_id'           => $customer->id,
-            'status'                => $isDelivery ? 'READY' : 'DRAFT',
-            'order_type'            => $request->order_type,
-            'payment_type'          => $request->payment_type,
-            'delivery_address'      => $isDelivery ? $request->address : null,
-            'address_link'          => $request->address_link,
-            'completed_target_at'   => $completedTargetAt,
-            'ready_time'            => $isDelivery ? $now : null,
-            'subtotal'              => $subtotal,
-            'total_amount'          => $total,
-            'notes'                 => $request->notes,
-        ]);
+        // Order + item + potong stok dalam satu transaksi: kalau stok satu barang kurang, tidak ada yang tersimpan
+        try {
+            $order = DB::transaction(function () use ($request, $customer, $isDelivery, $now, $completedTargetAt, $subtotal, $total, $cart) {
+                $order = Order::create([
+                    'order_number'          => strtoupper(Str::random(12)),
+                    'customer_id'           => $customer->id,
+                    'status'                => $isDelivery ? 'READY' : 'DRAFT',
+                    'order_type'            => $request->order_type,
+                    'payment_type'          => $request->payment_type,
+                    'delivery_address'      => $isDelivery ? $request->address : null,
+                    'address_link'          => $request->address_link,
+                    'completed_target_at'   => $completedTargetAt,
+                    'ready_time'            => $isDelivery ? $now : null,
+                    'subtotal'              => $subtotal,
+                    'total_amount'          => $total,
+                    'notes'                 => $request->notes,
+                ]);
 
-        // 3. Simpan item ke pivot
-        foreach ($cart as $id => $item) {
-            OrderProduct::create([
-                'order_id' => $order->id,
-                'product_id' => $id,
-                'product_name' => $item['name'],
-                'quantity' => $item['qty'],
-                'price_at_sale' => $item['price'],
-                'cogs_at_sale' => Product::find($id)->cogs ?? 0,
-                'subtotal' => $item['price'] * $item['qty'],
-            ]);
+                // 3. Simpan item ke pivot dan potong stok (sama seperti checkout kasir)
+                foreach ($cart as $id => $item) {
+                    $product = Product::find($id);
+                    OrderProduct::create([
+                        'order_id' => $order->id,
+                        'product_id' => $id,
+                        'product_name' => $item['name'],
+                        'quantity' => $item['qty'],
+                        'price_at_sale' => $item['price'],
+                        'cogs_at_sale' => $product->cogs ?? 0,
+                        'subtotal' => $item['price'] * $item['qty'],
+                    ]);
+
+                    $inventory = Inventory::where('product_id', $id)->lockForUpdate()->first();
+                    if (!$inventory) {
+                        throw new \DomainException("Stok {$item['name']} belum tersedia.");
+                    }
+                    try {
+                        $inventory->deductStock((int) $item['qty'], $order);
+                    } catch (\DomainException $e) {
+                        throw new \DomainException("Stok {$item['name']} tidak cukup! Sisa: {$inventory->quantity}");
+                    }
+                }
+
+                return $order;
+            });
+        } catch (\DomainException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
         }
 
         // 4. Kosongin keranjang

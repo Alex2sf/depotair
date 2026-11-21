@@ -458,6 +458,7 @@ class StockProcurementController extends Controller
                         'low_stock_threshold' => 5,
                     ]
                 );
+                $inventory = Inventory::whereKey($inventory->id)->lockForUpdate()->first();
 
                 $before = $inventory->quantity;
                 $qtyAdd = $item->quantity_approved;

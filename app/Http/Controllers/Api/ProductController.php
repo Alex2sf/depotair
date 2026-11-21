@@ -78,6 +78,7 @@ class ProductController extends Controller
             'sku'  => $request->sku ?? 'SKU-' . strtoupper(uniqid()), // Auto SKU kalau kosong
             'price' => $request->price,
             'unit' => $request->unit,
+            'image_url' => '', // Kolom wajib di DB; produk dari app belum punya gambar
             'cogs' => 0, // Default HPP 0 dulu
             'is_enabled' => true,
             'product_type' => 'CONSUMABLE', // Default tipe
@@ -87,9 +88,14 @@ class ProductController extends Controller
         // Kita gunakan create() manual atau relation
         \App\Models\Inventory::create([
             'product_id' => $product->id,
-            'quantity' => $request->initial_stock ?? 0,
+            'quantity' => 0,
             'low_stock_threshold' => 10,
         ]);
+
+        // Stok awal dicatat sebagai riwayat stok masuk supaya Kartu Stok bisa merunutnya
+        if ((int) ($request->initial_stock ?? 0) > 0) {
+            \App\Support\StockAdjuster::setTo($product->id, (int) $request->initial_stock, $request->user()?->id, 'Stok awal produk baru', \App\Enums\MovementReason::RESTOCK);
+        }
 
         return response()->json([
             'success' => true,

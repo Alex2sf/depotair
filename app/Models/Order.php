@@ -99,12 +99,13 @@ class Order extends Model
     {
         parent::boot();
 
-        // COD: uang tunai pesanan antar masuk laci saat pesanan selesai, dari jalur mana pun
-        // (kurir, kasir manual, bulk owner, atau form admin)
+        // Uang tunai masuk laci saat pesanan selesai, dari jalur mana pun (kurir, kasir manual, bulk owner,
+        // form admin): COD dan pesanan web ambil-sendiri. Idempoten, jadi checkout kasir yang sudah mencatat tidak dobel.
         static::updated(function ($order) {
+            $payment = is_object($order->payment_type) ? ($order->payment_type->value ?? '') : (string) $order->payment_type;
             if ($order->wasChanged('status')
                 && ($order->status->value ?? $order->status) === 'COMPLETE'
-                && \App\Support\CashDrawer::isCashDelivery($order)) {
+                && $payment === 'TUNAI') {
                 \App\Support\CashDrawer::recordSale($order, auth()->id() ?? $order->courier_id ?? $order->staff_id);
             }
         });

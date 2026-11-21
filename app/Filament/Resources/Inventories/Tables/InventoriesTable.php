@@ -85,6 +85,29 @@ class InventoriesTable
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),
+                \Filament\Actions\Action::make('adjust_stock')
+                    ->label('Sesuaikan stok')
+                    ->icon('heroicon-o-adjustments-horizontal')
+                    ->color('warning')
+                    ->modalHeading(fn ($record) => 'Sesuaikan stok ' . ($record->product?->name ?? ''))
+                    ->modalDescription(fn ($record) => 'Stok sistem sekarang: ' . $record->quantity . '. Selisih dicatat sebagai Penyesuaian di Kartu Stok.')
+                    ->schema([
+                        \Filament\Forms\Components\TextInput::make('target')
+                            ->label('Stok sebenarnya (hasil hitung)')
+                            ->numeric()->integer()->minValue(0)->required(),
+                        \Filament\Forms\Components\TextInput::make('notes')
+                            ->label('Catatan')
+                            ->placeholder('Koreksi opname 22/11')
+                            ->required()
+                            ->maxLength(200),
+                    ])
+                    ->action(function ($record, array $data) {
+                        $change = \App\Support\StockAdjuster::setTo($record->product_id, (int) $data['target'], auth()->id(), $data['notes']);
+                        \Filament\Notifications\Notification::make()
+                            ->title($change === 0 ? 'Stok sudah sama, tidak ada perubahan' : 'Stok disesuaikan (' . ($change > 0 ? '+' : '') . $change . ')')
+                            ->success()
+                            ->send();
+                    }),
             ])
             ->headerActions([
                 \pxlrbt\FilamentExcel\Actions\Tables\ExportAction::make()->exports([

@@ -194,15 +194,13 @@ class InventoryController extends Controller
 
             // Catat Movement
             InventoryMovement::create([
-                'inventory_id'    => $inventory->id,
                 'product_id'      => $request->product_id,
                 'user_id'         => $user->id,
-                'type'            => ($change > 0) ? 'in' : 'out',
                 'quantity_before' => $qtyBefore,
                 'quantity_after'  => $qtyAfter,
                 'quantity_change' => $change,
                 'reason'          => $reason->value,
-                'description'     => $request->notes ?? $reason->getLabel(),
+                'notes'           => $request->notes ?? $reason->getLabel(),
             ]);
 
             return null;
