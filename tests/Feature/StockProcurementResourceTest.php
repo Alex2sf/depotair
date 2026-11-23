@@ -75,7 +75,23 @@ class StockProcurementResourceTest extends TestCase
             ->assertSee('Galon PR-003')
             ->assertSee('Disetujui, belum diterima')
             ->assertSee('Rp 40.000')
-            ->assertSee('oleh Pak Owner');
+            ->assertSee('oleh Pak Owner')
+            ->assertSee('Alur Pengajuan')
+            ->assertSee('Menunggu barang datang')
+            ->assertSee('−2'); // diajukan 10, disetujui 8
+    }
+
+    public function test_view_page_for_rejected_procurement_shows_rejection_flow(): void
+    {
+        $owner = $this->owner();
+        $p = $this->procurement('PR-005', 'REJECTED', $owner);
+        $this->actingAs($owner);
+
+        Livewire::test(ViewStockProcurement::class, ['record' => $p->getRouteKey()])
+            ->assertSuccessful()
+            ->assertSee('Ditolak')
+            ->assertSee('Tidak dilanjutkan')
+            ->assertSee('Total diajukan');
     }
 
     public function test_resource_is_read_only(): void
