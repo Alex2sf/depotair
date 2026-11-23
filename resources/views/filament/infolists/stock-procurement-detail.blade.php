@@ -215,7 +215,11 @@
                 @if ($p->proof_image_url)
                     <a href="{{ $p->proof_image_url }}" target="_blank" rel="noopener"><img src="{{ $p->proof_image_url }}" alt="Nota penerimaan {{ $p->procurement_number }}"></a>
                 @else
-                    <p class="pd-empty">{{ $status === 'RECEIVED' ? 'Tidak ada foto nota' : 'Belum ada (diisi saat barang diterima)' }}</p>
+                    <p class="pd-empty">{{ match ($status) {
+                        'RECEIVED' => 'Tidak ada foto nota',
+                        'REJECTED' => 'Tidak ada (pengajuan ditolak)',
+                        default => 'Belum ada (diisi saat barang diterima)',
+                    } }}</p>
                 @endif
             </div>
         </div>

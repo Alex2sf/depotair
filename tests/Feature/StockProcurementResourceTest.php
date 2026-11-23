@@ -91,7 +91,9 @@ class StockProcurementResourceTest extends TestCase
             ->assertSuccessful()
             ->assertSee('Ditolak')
             ->assertSee('Tidak dilanjutkan')
-            ->assertSee('Total diajukan');
+            ->assertSee('Total diajukan')
+            ->assertSee('Tidak ada (pengajuan ditolak)')
+            ->assertDontSee('diisi saat barang diterima');
     }
 
     public function test_resource_is_read_only(): void
