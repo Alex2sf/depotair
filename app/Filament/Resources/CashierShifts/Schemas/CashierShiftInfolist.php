@@ -52,7 +52,7 @@ class CashierShiftInfolist
                     ->schema([
                         Grid::make(4)->schema([
                             TextEntry::make('starting_cash')
-                                ->label('Modal Awal Shift')
+                                ->label('Uang di Laci (Awal)')
                                 ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))
                                 ->size('lg')
                                 ->color('info'),
@@ -78,13 +78,13 @@ class CashierShiftInfolist
 
                         Grid::make(3)->schema([
                             TextEntry::make('expected_cash')
-                                ->label('Uang di Laci (Sistem)')
+                                ->label('Uang Seharusnya (Sistem)')
                                 ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))
                                 ->size('xl')
                                 ->weight('bold'),
 
                             TextEntry::make('actual_cash')
-                                ->label('Uang Fisik')
+                                ->label('Uang Fisik Aktual (Kasir)')
                                 ->formatStateUsing(fn ($state) => $state !== null ? 'Rp ' . number_format($state, 0, ',', '.') : 'Belum Input')
                                 ->size('xl')
                                 ->weight('bold')
@@ -106,13 +106,6 @@ class CashierShiftInfolist
                                     default => 'Lebih +Rp ' . number_format($state, 0, ',', '.'),
                                 }),
                         ]),
-
-                        TextEntry::make('system_balance_at_close')
-                            ->label('Audit: Saldo Database Saat Tutup Shift (Tidak Sinkron)')
-                            ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))
-                            ->color('warning')
-                            ->icon('heroicon-o-exclamation-triangle')
-                            ->visible(fn ($record) => $record->system_balance_at_close !== null && (int) $record->system_balance_at_close !== (int) $record->expected_cash),
                     ]),
 
                 Section::make('Catatan Kasir')

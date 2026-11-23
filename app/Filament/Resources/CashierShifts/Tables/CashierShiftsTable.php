@@ -45,54 +45,44 @@ class CashierShiftsTable
                     ->sortable(),
 
                 TextColumn::make('starting_cash')
-                    ->label('Modal Awal')
+                    ->label('Uang di Laci')
                     ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))
                     ->color('info')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->sortable(),
 
                 TextColumn::make('cash_sales')
                     ->label('Penjualan Tunai')
                     ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))
                     ->color('success')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->sortable(),
 
                 TextColumn::make('cash_expenses')
                     ->label('Belanja Kasir')
                     ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))
                     ->color('danger')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->sortable(),
 
                 TextColumn::make('cash_deposited')
                     ->label('Setor Kas')
                     ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state ?? 0, 0, ',', '.'))
                     ->color('warning')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->sortable(),
 
                 TextColumn::make('expected_cash')
-                    ->label('Uang di Laci (Sistem)')
+                    ->label('Uang Seharusnya')
                     ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))
-                    ->color(fn ($state, $record) => $record->system_balance_at_close !== null && (int) $record->system_balance_at_close !== (int) $state ? 'warning' : null)
-                    ->icon(fn ($state, $record) => $record->system_balance_at_close !== null && (int) $record->system_balance_at_close !== (int) $state ? 'heroicon-o-exclamation-triangle' : null)
-                    ->tooltip(fn ($state, $record) => $record->system_balance_at_close !== null && (int) $record->system_balance_at_close !== (int) $state
-                        ? 'Perhatian: Saldo database saat tutup shift tercatat Rp ' . number_format($record->system_balance_at_close, 0, ',', '.') . ' (cek detail shift).'
-                        : null)
                     ->sortable(),
 
                 TextColumn::make('system_balance_at_close')
                     ->label('Saldo Laci Sistem')
-                    ->tooltip('Snapshot cash_balances saat tutup shift. Harus sama dengan Uang di Laci (Sistem); kalau beda ada transaksi yang tidak tercatat konsisten.')
+                    ->tooltip('Snapshot cash_balances saat tutup shift. Harus sama dengan Uang Seharusnya; kalau beda ada transaksi yang tidak tercatat konsisten.')
                     ->formatStateUsing(fn ($state) => 'Rp ' . number_format($state, 0, ',', '.'))
                     ->color(fn ($state, $record) => $state !== null && (int) $state !== (int) $record->expected_cash ? 'warning' : null)
                     ->icon(fn ($state, $record) => $state !== null && (int) $state !== (int) $record->expected_cash ? 'heroicon-o-exclamation-triangle' : null)
-                    ->placeholder('-')
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->placeholder('-'),
 
                 TextColumn::make('actual_cash')
-                    ->label('Uang Fisik')
+                    ->label('Uang Fisik Akhir')
                     ->formatStateUsing(fn ($state) => $state !== null ? 'Rp ' . number_format($state, 0, ',', '.') : '-')
                     ->weight('bold')
                     ->placeholder('-'),
