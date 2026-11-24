@@ -2,8 +2,12 @@
     @php
         $num = fn ($n) => number_format((int) $n, 0, ',', '.');
         $rows = $this->rows;
+        $dailyRows = $this->dailyRows;
         $sum = $this->summary;
         $presets = ['today' => 'Hari ini', 'week' => '7 hari', 'month' => 'Bulan ini', 'lastmonth' => 'Bulan lalu'];
+        $periodHeading = $selectedDay
+            ? \Carbon\Carbon::parse($selectedDay)->translatedFormat('d M Y (l)')
+            : (\Carbon\Carbon::parse($from ?: now())->translatedFormat('d M Y') . ' – ' . \Carbon\Carbon::parse($to ?: now())->translatedFormat('d M Y'));
     @endphp
 
     <style>
@@ -60,6 +64,21 @@
         .kk-badge.bad { background: color-mix(in srgb, var(--kk-out) 16%, transparent); color: var(--kk-out); }
         .kk-help { color: var(--kk-muted); font-size: 12px; line-height: 1.6; }
         .kk-empty { text-align: center !important; color: var(--kk-muted); padding: 32px !important; }
+        .kk-panel { background: var(--kk-bg); border: 1px solid var(--kk-border); border-radius: 12px; overflow: hidden; }
+        .kk-panel-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;
+                         padding: 12px 16px; border-bottom: 1px solid var(--kk-border); background: var(--kk-head); }
+        .kk-panel-title { font-weight: 700; font-size: 14px; }
+        .kk-daily-wrap { overflow: auto; max-height: 310px; }
+        .kk-daily-table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 720px; }
+        .kk-daily-table th { position: sticky; top: 0; z-index: 2; background: var(--kk-head); color: var(--kk-muted); font-size: 12px;
+                             font-weight: 600; text-transform: uppercase; letter-spacing: .03em; padding: 9px 12px; text-align: right;
+                             border-bottom: 1px solid var(--kk-border); white-space: nowrap; }
+        .kk-daily-table td { padding: 8px 12px; text-align: right; border-bottom: 1px solid var(--kk-border); font-variant-numeric: tabular-nums; }
+        .kk-daily-table th:first-child, .kk-daily-table td:first-child { text-align: left; }
+        .kk-daily-table tbody tr { cursor: pointer; }
+        .kk-daily-table tbody tr:hover td { background: var(--kk-hover); }
+        .kk-daily-table tbody tr.is-active td { background: color-mix(in srgb, var(--kk-accent) 12%, transparent); font-weight: 600; }
+        .kk-detail-title { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
     </style>
 
     <div class="kk">
@@ -74,7 +93,64 @@
             </div>
         </div>
 
+        <div class="kk-panel">
+            <div class="kk-panel-head">
+                <span class="kk-panel-title">Rekap Harian 1 Bulan (Klik tanggal untuk lihat detail semua barang)</span>
+                <label class="kk-field">
+                    Pilih Bulan
+                    <input type="month" class="kk-input" wire:model.live="selectedMonth">
+                </label>
+            </div>
+            <div class="kk-daily-wrap">
+                <table class="kk-daily-table">
+                    <thead>
+                        <tr>
+                            <th>Tanggal</th>
+                            <th>+ Restock</th>
+                            <th>− Jual</th>
+                            <th>Produk Bergerak</th>
+                            <th>Di-Opname</th>
+                            <th>Status Selisih</th>
+                            <th>Detail</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($dailyRows as $day)
+                            <tr
+                                wire:key="kk-day-{{ $day['date'] }}"
+                                wire:click="selectDay('{{ $day['date'] }}')"
+                                class="{{ $selectedDay === $day['date'] ? 'is-active' : '' }}"
+                            >
+                                <td><strong>{{ $day['label'] }}</strong></td>
+                                <td>@if ($day['restock']) <span class="kk-in">+{{ $num($day['restock']) }}</span> @else <span class="kk-zero">–</span> @endif</td>
+                                <td>@if ($day['sale']) <span class="kk-out">−{{ $num($day['sale']) }}</span> @else <span class="kk-zero">–</span> @endif</td>
+                                <td>{{ $num($day['moved_products']) }} produk</td>
+                                <td>{{ $day['opname_count'] > 0 ? $num($day['opname_count']) . ' produk' : '–' }}</td>
+                                <td>
+                                    @if ($day['opname_count'] === 0)
+                                        <span class="kk-badge">Belum Opname</span>
+                                    @elseif ($day['opname_issues'] === 0)
+                                        <span class="kk-badge ok">✓ Aman (0 selisih)</span>
+                                    @else
+                                        <span class="kk-badge bad">{{ $num($day['opname_issues']) }} Barang Selisih</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    <button type="button" wire:click.stop="selectDay('{{ $day['date'] }}')" class="kk-btn {{ $selectedDay === $day['date'] ? 'is-on' : '' }}">
+                                        {{ $selectedDay === $day['date'] ? 'Sedang Dibuka' : 'Lihat Detail' }}
+                                    </button>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="7" class="kk-empty">Belum ada data pada bulan yang dipilih.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="kk-bar">
+            <div class="kk-detail-title">Detail Semua Barang: <span class="kk-badge warn">{{ $periodHeading }}</span></div>
             <div class="kk-group">
                 @foreach ($presets as $key => $label)
                     <button type="button" wire:click="setPreset('{{ $key }}')" class="kk-btn {{ $preset === $key ? 'is-on' : '' }}">{{ $label }}</button>
